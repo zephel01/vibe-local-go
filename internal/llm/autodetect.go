@@ -55,7 +55,7 @@ func AutoDetect(ctx context.Context) []DetectedProvider {
 			name:     "lm-studio",
 			port:     1234,
 			endpoint: "/api/v1/models", // LM Studio Native REST API (0.4.0+)
-			parser:   parseLlamaServerModels,
+			parser:   parseLMStudioNativeModels,
 		},
 		{
 			name:     "litellm",
@@ -229,6 +229,40 @@ func parseLlamaServerModels(data []byte) ([]string, error) {
 	return models, nil
 }
 
+// parseLMStudioNativeModels extracts model names from LM Studio Native REST API response
+// GET /api/v1/models
+// Response format: {"models": [{"key": "...", "type": "llm"|"embedding", ...}]}
+func parseLMStudioNativeModels(data []byte) ([]string, error) {
+	var response struct {
+		Models []struct {
+			Key  string `json:"key"`
+			Type string `json:"type"` // "llm" | "embedding"
+		} `json:"models"`
+	}
+
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+
+	if len(response.Models) == 0 {
+		return nil, fmt.Errorf("no models found")
+	}
+
+	models := make([]string, 0, len(response.Models))
+	for _, m := range response.Models {
+		// embeddingモデルを除外
+		if m.Type != "embedding" {
+			models = append(models, m.Key)
+		}
+	}
+
+	if len(models) == 0 {
+		return nil, fmt.Errorf("no llm models found")
+	}
+
+	return models, nil
+}
+
 // getDefaultFeatures returns default features for a provider type
 func getDefaultFeatures(providerName string) Features {
 	// All local providers support native function calling and streaming
@@ -339,9 +373,9 @@ func DetectProvidersByPort(ctx context.Context, ports []int) []DetectedProvider 
 		path   string
 		parser func([]byte) ([]string, error)
 	}{
-		{"/api/tags", parseOllamaModels},           // Ollama
-		{"/api/v1/models", parseLlamaServerModels}, // LM Studio Native REST API (0.4.0+)
-		{"/v1/models", parseLlamaServerModels},     // llama-server (OpenAI-compat)
+		{"/api/tags", parseOllamaModels},                // Ollama
+		{"/api/v1/models", parseLMStudioNativeModels},   // LM Studio Native REST API (0.4.0+)
+		{"/v1/models", parseLlamaServerModels},          // llama-server (OpenAI-compat)
 	}
 
 	// Check each port with each endpoint

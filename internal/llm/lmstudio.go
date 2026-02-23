@@ -85,19 +85,27 @@ func (p *LMStudioProvider) listModelsNative(ctx context.Context) ([]string, erro
 		return nil, fmt.Errorf("LM Studio /api/v1/models returned %d", resp.StatusCode)
 	}
 
+	// LM Studio Native REST API 形式:
+	// {"models": [{"key": "...", "type": "llm"|"embedding", "display_name": "...", ...}]}
 	var result struct {
-		Data []struct {
-			ID    string `json:"id"`
-			State string `json:"state"` // "loaded" | "not-loaded"
-		} `json:"data"`
+		Models []struct {
+			Key  string `json:"key"`
+			Type string `json:"type"` // "llm" | "embedding"
+		} `json:"models"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode LM Studio models: %w", err)
 	}
 
-	models := make([]string, 0, len(result.Data))
-	for _, m := range result.Data {
-		models = append(models, m.ID)
+	models := make([]string, 0, len(result.Models))
+	for _, m := range result.Models {
+		// embeddingモデルを除外
+		if m.Type != "embedding" {
+			models = append(models, m.Key)
+		}
+	}
+	if len(models) == 0 {
+		return nil, fmt.Errorf("no llm models found in /api/v1/models")
 	}
 	return models, nil
 }

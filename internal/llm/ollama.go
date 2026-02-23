@@ -84,7 +84,8 @@ func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
 		return nil, fmt.Errorf("provider returned status %d", resp.StatusCode)
 	}
 
-	if providerKey == "ollama" {
+	switch providerKey {
+	case "ollama":
 		var result struct {
 			Models []struct {
 				Name string `json:"name"`
@@ -94,12 +95,30 @@ func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
 			return nil, err
 		}
 		models := make([]string, len(result.Models))
-		for i, model := range result.Models {
-			models[i] = model.Name
+		for i, m := range result.Models {
+			models[i] = m.Name
 		}
 		return models, nil
-	} else {
-		// OpenAI互換形式
+	case "lm-studio":
+		// LM Studio Native REST API 形式: {"models": [{"key": "...", "type": "llm"|"embedding", ...}]}
+		var result struct {
+			Models []struct {
+				Key  string `json:"key"`
+				Type string `json:"type"`
+			} `json:"models"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+		models := make([]string, 0, len(result.Models))
+		for _, m := range result.Models {
+			if m.Type != "embedding" {
+				models = append(models, m.Key)
+			}
+		}
+		return models, nil
+	default:
+		// OpenAI互換形式（llama-server など）
 		var result struct {
 			Data []struct {
 				ID string `json:"id"`
@@ -109,8 +128,8 @@ func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
 			return nil, err
 		}
 		models := make([]string, len(result.Data))
-		for i, model := range result.Data {
-			models[i] = model.ID
+		for i, m := range result.Data {
+			models[i] = m.ID
 		}
 		return models, nil
 	}
