@@ -80,7 +80,8 @@ func (le *LineEditor) ReadLine(prompt string) (string, error) {
 	fmt.Print(prompt)
 
 	for {
-		b := make([]byte, 4)
+		// 256バイト: ペーストや日本語IME一括送信に対応
+		b := make([]byte, 256)
 		n, err := os.Stdin.Read(b)
 		if err != nil {
 			fmt.Print("\r\n")
@@ -235,17 +236,42 @@ func (le *LineEditor) ReadLine(prompt string) (string, error) {
 			}
 
 		default:
-			// 通常の文字入力
-			r, size := utf8.DecodeRune(b[:n])
-			if r != utf8.RuneError || size > 0 {
-				if r >= 32 { // 制御文字以外
-					// カーソル位置に挿入
-					buf = append(buf, 0)
-					copy(buf[cursor+1:], buf[cursor:])
-					buf[cursor] = r
-					cursor++
-					le.redrawLine(prompt, buf, cursor)
+			// 通常の文字入力（マルチバイトUTF-8 / 日本語IME対応）
+			src := b[:n]
+			// 末尾が不完全なUTF-8シーケンスなら追加バイトを読んで補完
+			for !utf8.Valid(src) {
+				extra := [1]byte{}
+				ne, _ := os.Stdin.Read(extra[:])
+				if ne == 0 {
+					break
 				}
+				newSrc := make([]byte, len(src)+1)
+				copy(newSrc, src)
+				newSrc[len(src)] = extra[0]
+				src = newSrc
+				if len(src) >= utf8.UTFMax*16 {
+					break // 無限ループ防止
+				}
+			}
+			// 受信したバイト列に含まれる全ルーンを挿入
+			changed := false
+			for len(src) > 0 {
+				r, size := utf8.DecodeRune(src)
+				src = src[size:]
+				if r == utf8.RuneError && size == 1 {
+					continue // 不正バイトはスキップ
+				}
+				if r < 32 {
+					continue // 制御文字はスキップ
+				}
+				buf = append(buf, 0)
+				copy(buf[cursor+1:], buf[cursor:])
+				buf[cursor] = r
+				cursor++
+				changed = true
+			}
+			if changed {
+				le.redrawLine(prompt, buf, cursor)
 			}
 		}
 	}
