@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -148,6 +149,108 @@ func (p *LMStudioProvider) listModelsOpenAICompat(ctx context.Context) ([]string
 		models = append(models, m.ID)
 	}
 	return models, nil
+}
+
+// Chat モデルをロードしてからチャット
+func (p *LMStudioProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	if err := p.ensureModelLoaded(ctx, req.Model); err != nil {
+		// ロード失敗はwarningとして扱い、そのままチャット試行
+		_ = err
+	}
+	return p.OpenAICompatProvider.Chat(ctx, req)
+}
+
+// ChatStream モデルをロードしてからストリーミングチャット
+func (p *LMStudioProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
+	if err := p.ensureModelLoaded(ctx, req.Model); err != nil {
+		_ = err
+	}
+	return p.OpenAICompatProvider.ChatStream(ctx, req)
+}
+
+// ensureModelLoaded 指定モデルがロード済みでなければロードする
+func (p *LMStudioProvider) ensureModelLoaded(ctx context.Context, model string) error {
+	// 現在ロード済みのモデルを確認
+	loadedKey, err := p.getLoadedModelKey(ctx)
+	if err == nil && loadedKey == model {
+		return nil // すでにロード済み
+	}
+
+	// モデルをロード（タイムアウトを長めに設定）
+	loadCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	return p.loadModel(loadCtx, model)
+}
+
+// getLoadedModelKey 現在ロード済みのモデルキーを取得
+// GET /api/v1/models/get
+func (p *LMStudioProvider) getLoadedModelKey(ctx context.Context) (string, error) {
+	url := p.baseHost + "/api/v1/models/get"
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "vibe-local-go/lmstudio")
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GET /api/v1/models/get returned %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Model *struct {
+			Key string `json:"key"`
+		} `json:"model"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Model == nil || result.Model.Key == "" {
+		return "", fmt.Errorf("no model currently loaded")
+	}
+	return result.Model.Key, nil
+}
+
+// loadModel POST /api/v1/models/load でモデルをロード
+func (p *LMStudioProvider) loadModel(ctx context.Context, key string) error {
+	url := p.baseHost + "/api/v1/models/load"
+
+	body := map[string]interface{}{
+		"identifier": key,
+		"config":     map[string]interface{}{},
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "vibe-local-go/lmstudio")
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to load model %q: %w", key, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("POST /api/v1/models/load returned %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // IsReachable LM Studio が起動中かどうかを確認
