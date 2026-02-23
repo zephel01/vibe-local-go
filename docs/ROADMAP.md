@@ -1,6 +1,6 @@
 # vibe-local Improvement Roadmap
 
-> Last updated: 2026-02-23
+> Last updated: 2026-02-24
 
 ## vibe-coder: Claude Code Replacement (v0.3)
 
@@ -114,6 +114,23 @@ Working:
 **Evidence**: Sidecar request with `tool_choice: {name: "web_search"}` gets proxied to Ollama, returns empty, model invents sources
 **Fix**: Proxy intercepts WebSearch sidecar calls (`tool_choice.name == "web_search"`), performs real DuckDuckGo HTML search (`html.duckduckgo.com`), returns actual results as text. 8 results in ~1.3s. Offline fallback returns honest "not available" message.
 **Key learning**: Detection must check `tool_choice.name` only (not `tools` array), because Claude Code sends `tools: [web_search_tool]` (1 element) not `tools: []`. Response uses simple text format (not `server_tool_use` + `web_search_tool_result` which requires opaque `encrypted_content`). "Did 0 searches" counter is cosmetic only — real results are used.
+
+## Go版 (v1.0) — 2026-02-24 追加実装
+
+| ID | Feature | Status |
+|----|---------|--------|
+| G1 | モデル存在チェック＋自動pull提案（セットアップ時） | DONE ✅ |
+| G2 | モデル存在チェック＋自動pull提案（編集時） | DONE ✅ |
+| G3 | 起動時pullModelIfNeeded（既存）との二重チェック | DONE ✅ |
+| G4 | PullModelWithProgress（ストリーミング進捗API） | DONE ✅ |
+| G5 | プログレスバー表示（%、MB/GB、ビジュアルバー） | DONE ✅ |
+| G6 | 接続エラー時再設定でローカルプロバイダーも選択可能 | DONE ✅ |
+
+**変更ファイル**:
+- `internal/llm/ollama.go` — PullProgressCallback型、PullModelWithProgress()追加
+- `cmd/vibe/main.go` — checkAndPullOllamaModel()、pullOllamaModelWithProgress()追加、checkProviderConnection()改善
+
+---
 
 ## P1 — High (Functional Issues)
 

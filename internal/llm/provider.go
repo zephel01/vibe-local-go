@@ -49,3 +49,9 @@ type ModelManager interface {
 	PullModel(ctx context.Context, name string) error
 	CheckModel(ctx context.Context, name string) (bool, error)
 }
+
+// ModelSwitcher モデルを動的に切り替え可能なプロバイダー用
+type ModelSwitcher interface {
+	GetModel() string
+	SetModel(model string)
+}

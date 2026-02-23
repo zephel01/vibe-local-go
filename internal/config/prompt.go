@@ -9,7 +9,8 @@ import (
 )
 
 // BuildSystemPrompt builds system prompt
-func BuildSystemPrompt(cfg *Config) string {
+// skillMetadata: スキルマネージャーから生成されたメタデータ文字列（空文字なら無視）
+func BuildSystemPrompt(cfg *Config, skillMetadata ...string) string {
 	var prompt strings.Builder
 
 	// Basic rules
@@ -76,6 +77,11 @@ func BuildSystemPrompt(cfg *Config) string {
 	prompt.WriteString("3. write_fileで新しいファイルを作成\n")
 	prompt.WriteString("4. bashでテスト/ビルド\n")
 	prompt.WriteString("```\n\n")
+
+	// Skills metadata (L1: 起動時にメタデータをシステムプロンプトに注入)
+	if len(skillMetadata) > 0 && skillMetadata[0] != "" {
+		prompt.WriteString(skillMetadata[0])
+	}
 
 	// Project-specific instructions
 	if projectInstructions, err := loadProjectInstructions(); err == nil && len(projectInstructions) > 0 {

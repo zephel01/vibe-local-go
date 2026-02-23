@@ -3,6 +3,7 @@ package ui
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"unicode"
@@ -10,8 +11,21 @@ import (
 	"golang.org/x/term"
 )
 
-// ReadLine reads a line from stdin with basic editing
+// ReadLine reads a line from stdin with interactive editing (history, tab completion)
 func (t *Terminal) ReadLine(prompt string) (string, error) {
+	line, err := t.lineEditor.ReadLine(prompt)
+	if err != nil {
+		if err.Error() == "EOF" {
+			return "", io.EOF
+		}
+		return "", err
+	}
+	line = strings.TrimSpace(line)
+	return line, nil
+}
+
+// ReadLineSimple 従来のシンプルな行読み取り（セットアップ等で使用）
+func (t *Terminal) ReadLineSimple(prompt string) (string, error) {
 	t.Print(prompt)
 
 	reader := bufio.NewReader(os.Stdin)

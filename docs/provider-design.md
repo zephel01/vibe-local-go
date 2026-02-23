@@ -225,8 +225,42 @@ type OllamaProvider struct {
 // ModelManager インターフェースを追加実装
 func (o *OllamaProvider) ListModels(ctx context.Context) ([]ModelInfo, error) { ... }
 func (o *OllamaProvider) PullModel(ctx context.Context, name string) error { ... }
+func (o *OllamaProvider) PullModelWithProgress(ctx context.Context, name string, progressFn PullProgressCallback) error { ... }
+func (o *OllamaProvider) CheckModel(ctx context.Context, name string) (bool, error) { ... }
 func (o *OllamaProvider) SearchModels(ctx context.Context, query string) ([]ModelInfo, error) { ... }
 ```
+
+#### PullModelWithProgress（進捗表示付きモデルダウンロード）
+
+`/api/pull` を `"stream": true` で呼び出し、JSON Lines形式の進捗情報をリアルタイムで受信する。
+コールバック関数 `PullProgressCallback func(status string, completed, total int64)` を通じて
+呼び出し元にステータス・ダウンロード済みバイト数・総バイト数を通知する。
+
+```
+Ollama /api/pull ストリーミングレスポンス:
+  {"status":"pulling manifest"}
+  {"status":"pulling 9eba2761cf0b","digest":"sha256:...","total":4567890,"completed":1234567}
+  {"status":"verifying sha256 digest"}
+  {"status":"writing manifest"}
+  {"status":"success"}
+```
+
+呼び出し元（main.go）では `total > 0` の場合にプログレスバーを表示:
+```
+  ██████████████░░░░░░░░░░░░░░░░  47.2% [1.9/4.0 GB]
+```
+
+#### モデル存在チェック＋自動pullフロー
+
+セットアップ時（`addLocalProvider`）と編集時（`providerEdit`）に、手動入力されたモデル名が
+Ollamaにダウンロード済みか確認し、未ダウンロードの場合は以下の選択肢を提示:
+
+1. 今すぐダウンロード（プログレスバー付き `ollama pull`）
+2. そのまま設定を保存（後で手動ダウンロード）
+3. 既存のモデルから選び直す
+
+起動時にも `pullModelIfNeeded()` で二重チェックを行い、モデル不在時はダウンロードまたは
+既存モデルへの切り替えを案内する。
 
 ### 3. Anthropic プロバイダー（独自実装）
 
