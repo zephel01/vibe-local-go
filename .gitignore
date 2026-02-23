@@ -36,3 +36,6 @@ Thumbs.db
 # Config files (local)
 *.local
 .env
+
+# Scripts
+/scripts/install.*
