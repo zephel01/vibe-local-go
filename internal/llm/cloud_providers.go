@@ -42,6 +42,12 @@ var LocalProviders = []LocalProviderDef{
 		DefaultHost:  "http://localhost:8080/v1",
 		DefaultModel: "llama-3-8b-instruct",
 	},
+	{
+		Name:         "LiteLLM (LAN)",
+		Key:          "litellm",
+		DefaultHost:  "http://192.168.4.85:4000/v1",
+		DefaultModel: "glm47-flash",
+	},
 }
 
 // ProviderCategory カテゴリの表示定義
