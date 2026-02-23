@@ -495,24 +495,23 @@
 
 ### T-1900: ビルド + 配布
 
-- [ ] T-1901: Makefile
+- [x] T-1901: Makefile
   - build（ローカルビルド）
-  - build-all（クロスコンパイル 5プラットフォーム）
+  - build-all（クロスコンパイル 6プラットフォーム: darwin/arm64, darwin/amd64, linux/amd64, linux/arm64, linux/riscv64, windows/amd64）
   - test（go test ./...）
   - lint（go vet, staticcheck）
   - clean（dist/ 削除）
-  - 推定: ~40行 | 依存: T-000
+  - 実装: Makefile (178行)
 
-- [ ] T-1902: GitHub Actions CI/CD
-  - テスト（ubuntu/macos/windows matrix）
+- [x] T-1902: GitHub Actions CI/CD
   - ビルド + リリース（tag push → バイナリ添付）
-  - 推定: ~80行（YAML） | 依存: T-1901
+  - 6プラットフォーム並列ビルド + 圧縮 + GitHub Release 自動作成
+  - 実装: .github/workflows/release.yml (166行)
 
-- [ ] T-1903: 軽量インストーラ
-  - install.sh（バイナリDL + PATH設定、~30行）
-  - install.ps1（バイナリDL + PATH設定、~30行）
-  - 現行版の49K+35Kから大幅削減
-  - 推定: ~60行 | 依存: T-1902
+- [x] T-1903: 軽量インストーラ
+  - install-go.sh（OS/CPU自動検出、GitHub Release バイナリDL、PATH設定）
+  - 現行版の1170行から295行に大幅削減
+  - 実装: scripts/install-go.sh (295行)
 
 ---
 
@@ -563,11 +562,14 @@
   - カバレッジ目標: 80%
   - 推定: ~200行 | 依存: T-1200, T-1300
 
-- [ ] T-2006: 統合テスト
-  - Ollama モック → エージェント完全ループ
-  - ワンショットモード
-  - セッション resume
-  - 推定: ~200行 | 依存: 全パッケージ
+- [x] T-2006: 統合テスト
+  - Ollama モック（httptest.Server）→ エージェント完全ループ
+  - ワンショットモード（コンテキストキャンセル含む）
+  - セッション resume + 一覧取得
+  - Plan モードフラグ動作確認
+  - Write→Read ツールの統合テスト
+  - ツール登録と全スキーマ取得のテスト
+  - 実装: internal/agent/integration_test.go
 
 ---
 
@@ -780,11 +782,13 @@ Phase 7: T-2101, T-2102
   - 未知のプロバイダー名 → OpenAICompatProvider（汎用）として生成
   - 推定: ~80行 | 依存: T-8104, T-8201, T-8302, T-8303
 
-- [ ] T-8305: クラウドプロバイダーテスト
-  - Anthropic 変換のユニットテスト（リクエスト/レスポンス各方向）
-  - ファクトリのテスト（全プロバイダー名）
-  - APIキーなしエラー、不正キー形式の検出
-  - 推定: ~200行 | 依存: T-8303, T-8304
+- [~] T-8305: クラウドプロバイダーテスト
+  - [x] ファクトリのテスト（全15プロバイダー名、GetCloudProviderDef, NewCloudProvider）
+  - [x] カテゴリ別フィルタリングテスト（GetProvidersByCategory）
+  - [x] BaseURL形式・EnvKey形式のバリデーションテスト
+  - [x] デフォルトモデル・カスタムモデルの設定テスト
+  - [ ] Anthropic Messages API変換テスト（T-8303 完成後に実装予定）
+  - 実装: internal/llm/cloud_providers_test.go
 
 ---
 
@@ -849,17 +853,19 @@ Phase 7: T-2101, T-2102
     5. 何も見つからなければ → エラー + セットアップガイド表示
   - 推定: ~100行 | 依存: T-8202, T-8304, T-8401
 
-- [ ] T-8502: 検出結果の初心者向け表示
-  - 起動時バナーにプロバイダー情報追加
-  - 例: "🔍 Ollama (qwen3:8b) → メイン / llama-server → サブ"
-  - フォールバック設定時: "☁ OpenAI (gpt-4o) → フォールバック"
-  - 推定: ~40行 | 依存: T-8501
+- [x] T-8502: 検出結果の初心者向け表示
+  - 起動時バナーにチェーン情報追加（BannerOptions.ChainInfo フィールド）
+  - ProviderChain 使用時: "🦙 ollama→main / ☁️ openai→fallback" 形式で表示
+  - 単一プロバイダー時はChainInfo非表示
+  - 実装: internal/ui/banner.go, cmd/vibe/main.go
 
-- [ ] T-8503: /providers スラッシュコマンド
-  - 検出済みプロバイダー一覧表示
-  - 各プロバイダーのステータス（接続OK/NG、モデル名）
-  - アクティブなプロバイダーのハイライト
-  - 推定: ~40行 | 依存: T-8401, T-1502
+- [x] T-8503: /providers スラッシュコマンド
+  - 検出済みプロバイダー一覧表示（ProviderChain対応）
+  - 各プロバイダーのステータス（接続OK/NG、モデル名、URL、失敗カウント）
+  - アクティブなプロバイダーを ▶ でハイライト
+  - 単一プロバイダーの場合も対応
+  - /help に /providers を追加
+  - 実装: cmd/vibe/main.go (registerProvidersStatusCommand), internal/ui/commands.go
 
 - [ ] T-8504: /switch コマンド（プロバイダー切り替え）
   - /switch ollama → メインをOllamaに切り替え

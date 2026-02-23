@@ -225,7 +225,7 @@ func main() {
 	}
 
 	// Show banner
-	showBanner(terminal, cfg, router)
+	showBanner(terminal, cfg, router, provider)
 
 	// Resume session if requested
 	if flagResume != "" {
@@ -709,6 +709,9 @@ func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *
 
 	// Planコマンドを登録
 	registerPlanCommands(cmdHandler, terminal, agt)
+
+	// /providers ステータスコマンドを登録
+	registerProvidersStatusCommand(cmdHandler, terminal, provider)
 
 	// タブ補完候補をLineEditorに設定
 	terminal.GetLineEditor().SetCompletions(cmdHandler.CommandNames())
@@ -2118,7 +2121,7 @@ func switchToCloudProvider(cfg *config.Config, terminal *ui.Terminal) bool {
 	return true
 }
 
-func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRouter) {
+func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRouter, provider llm.LLMProvider) {
 	tier := router.GetModelTier(cfg.Model)
 	cwd, _ := os.Getwd()
 
@@ -2126,6 +2129,21 @@ func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRout
 	hostDisplay := cfg.OllamaHost
 	if def := llm.GetCloudProviderDef(cfg.Provider); def != nil {
 		hostDisplay = def.BaseURL
+	}
+
+	// ProviderChain の場合はチェーン情報を構築
+	chainInfo := ""
+	if chain, ok := provider.(*llm.ProviderChain); ok {
+		entries := chain.GetEntries()
+		if len(entries) > 1 {
+			parts := make([]string, 0, len(entries))
+			for _, e := range entries {
+				info := e.Provider.Info()
+				icon := ui.ProviderIcon(info.Name)
+				parts = append(parts, fmt.Sprintf("%s %s→%s", icon, info.Name, string(e.Role)))
+			}
+			chainInfo = strings.Join(parts, " / ")
+		}
 	}
 
 	opts := ui.BannerOptions{
@@ -2139,6 +2157,7 @@ func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRout
 		Provider:      cfg.Provider,
 		EngineHost:    hostDisplay,
 		CWD:           cwd,
+		ChainInfo:     chainInfo,
 	}
 	terminal.ShowBanner(opts)
 }
@@ -2674,6 +2693,86 @@ func registerPlanCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, 
 				terminal.PrintError(fmt.Sprintf("不正な引数: %s\n  使用方法: /plan [on|off]", args))
 				return nil
 			}
+		},
+	})
+}
+
+// registerProvidersStatusCommand プロバイダー状態確認コマンドを登録（T-8503）
+func registerProvidersStatusCommand(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, provider llm.LLMProvider) {
+	cmdHandler.Register(&ui.SlashCommand{
+		Name:        "providers",
+		Description: "登録済みプロバイダーの接続状況と一覧を表示",
+		Handler: func(args string) error {
+			terminal.PrintColored(ui.ColorCyan, "━━ Providers ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+			// ProviderChain の場合は全エントリを表示
+			if chain, ok := provider.(*llm.ProviderChain); ok {
+				entries := chain.GetEntries()
+				currentProvider := chain.GetCurrentProvider()
+				currentInfo := currentProvider.Info()
+
+				for i, e := range entries {
+					info := e.Provider.Info()
+					icon := ui.ProviderIcon(info.Name)
+
+					// アクティブなプロバイダーをハイライト
+					isActive := info.Name == currentInfo.Name && info.BaseURL == currentInfo.BaseURL
+					marker := "  "
+					if isActive {
+						marker = "▶ "
+					}
+
+					// 接続チェック
+					ctx := context.Background()
+					status := "✅"
+					statusMsg := "接続OK"
+					if err := e.Provider.CheckHealth(ctx); err != nil {
+						status = "❌"
+						statusMsg = "接続不可"
+					}
+
+					// 失敗回数
+					failCount := chain.GetFailureCount(i)
+					failInfo := ""
+					if failCount > 0 {
+						failInfo = fmt.Sprintf(" (失敗: %dx)", failCount)
+					}
+
+					// ロール表示
+					roleStr := string(e.Role)
+					typeStr := string(info.Type)
+
+					terminal.PrintColored(ui.ColorCyan, fmt.Sprintf("%s%s %s", marker, icon, info.Name))
+					terminal.Printf(" [%s/%s] %s %s%s\n", roleStr, typeStr, status, statusMsg, failInfo)
+					terminal.PrintColored(ui.ColorGray, fmt.Sprintf("     Model: %s\n", info.Model))
+					terminal.PrintColored(ui.ColorGray, fmt.Sprintf("     URL:   %s\n", info.BaseURL))
+				}
+
+				// フォールバック状態
+				terminal.PrintColored(ui.ColorGray, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+				terminal.Printf("  現在のプロバイダー: %s %s (%s)\n",
+					ui.ProviderIcon(currentInfo.Name), currentInfo.Name, currentInfo.Model)
+
+			} else {
+				// 単一プロバイダーの場合
+				info := provider.Info()
+				icon := ui.ProviderIcon(info.Name)
+
+				ctx := context.Background()
+				status := "✅ 接続OK"
+				if err := provider.CheckHealth(ctx); err != nil {
+					status = fmt.Sprintf("❌ 接続不可: %v", err)
+				}
+
+				terminal.PrintColored(ui.ColorCyan, fmt.Sprintf("▶ %s %s\n", icon, info.Name))
+				terminal.Printf("  Model:  %s\n", info.Model)
+				terminal.Printf("  URL:    %s\n", info.BaseURL)
+				terminal.Printf("  Status: %s\n", status)
+			}
+
+			terminal.PrintColored(ui.ColorGray, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+			terminal.PrintColored(ui.ColorGray, "  /provider でプロバイダーを管理できます\n")
+			return nil
 		},
 	})
 }

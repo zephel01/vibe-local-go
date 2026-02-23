@@ -21,6 +21,7 @@ type BannerOptions struct {
 	Provider      string // "ollama", "openrouter", "openai", "anthropic", "google"
 	EngineHost    string // 接続先URL
 	CWD           string
+	ChainInfo     string // プロバイダーチェーン情報（例: "Ollama→main / OpenAI→fallback"）
 }
 
 // ShowBanner 起動時バナーを表示（Python版準拠）
@@ -87,6 +88,12 @@ func (t *Terminal) ShowBanner(opts BannerOptions) {
 	t.PrintColored(ColorCyan, "  📁 CWD    ")
 	t.Printf("%s\n", cwd)
 
+	// プロバイダーチェーン情報（複数プロバイダー使用時のみ表示）
+	if opts.ChainInfo != "" {
+		t.PrintColored(ColorCyan, "  🔗 Chain  ")
+		t.Printf("%s\n", opts.ChainInfo)
+	}
+
 	// 区切り線
 	t.PrintColored(ColorGray, "  "+strings.Repeat("─", 48)+"\n")
 }
@@ -115,6 +122,11 @@ func providerDisplayName(provider string) string {
 		return name
 	}
 	return provider
+}
+
+// ProviderIcon プロバイダーのアイコン絵文字を返す（export）
+func ProviderIcon(provider string) string {
+	return providerIcon(provider)
 }
 
 // providerIcon プロバイダーのアイコン絵文字を返す
