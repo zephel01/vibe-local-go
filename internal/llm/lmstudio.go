@@ -153,32 +153,35 @@ func (p *LMStudioProvider) listModelsOpenAICompat(ctx context.Context) ([]string
 
 // Chat モデルをロードしてからチャット
 func (p *LMStudioProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	if err := p.ensureModelLoaded(ctx, req.Model); err != nil {
-		// ロード失敗はwarningとして扱い、そのままチャット試行
-		_ = err
+	if err := p.ensureModelLoaded(req.Model); err != nil {
+		return nil, fmt.Errorf("LM Studio: モデルのロードに失敗 (%q): %w", req.Model, err)
 	}
 	return p.OpenAICompatProvider.Chat(ctx, req)
 }
 
 // ChatStream モデルをロードしてからストリーミングチャット
 func (p *LMStudioProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
-	if err := p.ensureModelLoaded(ctx, req.Model); err != nil {
-		_ = err
+	if err := p.ensureModelLoaded(req.Model); err != nil {
+		return nil, fmt.Errorf("LM Studio: モデルのロードに失敗 (%q): %w", req.Model, err)
 	}
 	return p.OpenAICompatProvider.ChatStream(ctx, req)
 }
 
 // ensureModelLoaded 指定モデルがロード済みでなければロードする
-func (p *LMStudioProvider) ensureModelLoaded(ctx context.Context, model string) error {
-	// 現在ロード済みのモデルを確認
-	loadedKey, err := p.getLoadedModelKey(ctx)
+// context.Background() を使用（チャットのタイムアウトに依存しない）
+func (p *LMStudioProvider) ensureModelLoaded(model string) error {
+	// 独立したコンテキストで確認・ロード（チャットのctxタイムアウトに左右されない）
+	checkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	loadedKey, err := p.getLoadedModelKey(checkCtx)
 	if err == nil && loadedKey == model {
 		return nil // すでにロード済み
 	}
 
-	// モデルをロード（タイムアウトを長めに設定）
-	loadCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
-	defer cancel()
+	// モデルをロード（大きなモデルは時間がかかるため120秒）
+	loadCtx, loadCancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer loadCancel()
 	return p.loadModel(loadCtx, model)
 }
 
