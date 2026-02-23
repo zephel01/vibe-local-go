@@ -5,6 +5,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 )
 
@@ -29,15 +31,22 @@ const (
 type Terminal struct {
 	enableColors bool
 	width        int
+	lineEditor   *LineEditor
 }
 
 // NewTerminal creates a new terminal
 func NewTerminal() *Terminal {
 	t := &Terminal{
 		enableColors: true,
+		lineEditor:   NewLineEditor(),
 	}
 	t.detectTerminalWidth()
 	return t
+}
+
+// GetLineEditor LineEditorを取得
+func (t *Terminal) GetLineEditor() *LineEditor {
+	return t.lineEditor
 }
 
 // Print prints text to stdout
@@ -226,4 +235,101 @@ func (t *Terminal) ClearLine() {
 // ClearScreen clears the screen
 func (t *Terminal) ClearScreen() {
 	fmt.Print("\033[2J\033[H")
+}
+
+// StatusLineUpdater displays a status line with real-time updates
+type StatusLineUpdater struct {
+	terminal       *Terminal
+	startTime      time.Time
+	ticker         *time.Ticker
+	done           chan bool
+	tokenCount     int
+	isRunning      bool
+	mu             sync.RWMutex // Protects tokenCount access
+}
+
+// NewStatusLineUpdater creates a new status line updater
+func NewStatusLineUpdater(terminal *Terminal) *StatusLineUpdater {
+	return &StatusLineUpdater{
+		terminal:   terminal,
+		done:       make(chan bool),
+		isRunning:  false,
+	}
+}
+
+// Start starts displaying the status line with the given message
+func (s *StatusLineUpdater) Start(message string) {
+	if s.isRunning {
+		return
+	}
+
+	s.isRunning = true
+	s.startTime = time.Now()
+	s.tokenCount = 0
+	s.ticker = time.NewTicker(100 * time.Millisecond)
+
+	go func() {
+		for {
+			select {
+			case <-s.ticker.C:
+				// Update display every 100ms
+				s.update(message)
+			case <-s.done:
+				return
+			}
+		}
+	}()
+}
+
+// Stop stops the status line updater and clears the line
+func (s *StatusLineUpdater) Stop() {
+	if !s.isRunning {
+		return
+	}
+
+	s.isRunning = false
+	s.done <- true
+
+	if s.ticker != nil {
+		s.ticker.Stop()
+	}
+
+	// Clear the line
+	s.terminal.ClearLine()
+}
+
+// SetTokenCount sets the token count for display
+func (s *StatusLineUpdater) SetTokenCount(count int) {
+	s.mu.Lock()
+	s.tokenCount = count
+	s.mu.Unlock()
+}
+
+// update displays the current status with elapsed time and token count
+func (s *StatusLineUpdater) update(message string) {
+	elapsed := time.Since(s.startTime)
+
+	// Format elapsed time (e.g., "3s", "0s")
+	seconds := int(elapsed.Seconds())
+
+	// Format token count (e.g., "1.2k" for 1200)
+	tokenStr := ""
+	s.mu.RLock()
+	tokenCount := s.tokenCount
+	s.mu.RUnlock()
+
+	if tokenCount > 0 {
+		if tokenCount >= 1000 {
+			tokenStr = fmt.Sprintf(" · ↓ %.1fk", float64(tokenCount)/1000.0)
+		} else {
+			tokenStr = fmt.Sprintf(" · ↓ %d", tokenCount)
+		}
+	}
+
+	// Build status line
+	statusLine := fmt.Sprintf("%s (%ds%s)", message, seconds, tokenStr)
+
+	// Clear the line and print new status
+	s.terminal.ClearLine()
+	s.terminal.Print(statusLine)
 }

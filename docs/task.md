@@ -632,19 +632,19 @@ Phase 7: T-2101, T-2102
 
 **目標**: 既存動作を壊さずにインターフェースを導入。Agent が具象型ではなくインターフェースに依存するようにする。
 
-- [ ] T-8101: LLMProvider インターフェース定義（internal/llm/provider.go）
+- [x] T-8101: LLMProvider インターフェース定義（internal/llm/provider.go）
   - LLMProvider interface: Chat(), ChatStream(), CheckHealth(), Info()
   - ProviderInfo struct: Name, Type(local/cloud), BaseURL, Model, Features
   - Features struct: NativeFunctionCalling, ModelManagement, Streaming, Vision, ContextWindowReport
   - 推定: ~80行 | 依存: なし
 
-- [ ] T-8102: 拡張インターフェース定義（internal/llm/provider.go）
+- [x] T-8102: 拡張インターフェース定義（internal/llm/provider.go）
   - ModelManager interface: ListModels(), PullModel(), SearchModels(), DeleteModel()
   - ModelInfo struct: Name, Size, ContextSize, Family, ParameterSize, Quantization
   - ContextReporter interface: GetContextWindow(), GetTokenUsage()
   - 推定: ~60行 | 依存: T-8101
 
-- [ ] T-8103: OpenAICompatProvider 実装（internal/llm/openai_compat.go）
+- [x] T-8103: OpenAICompatProvider 実装（internal/llm/openai_compat.go）
   - 既存 client.go + sync.go + streaming.go のコードを移動・リファクタ
   - OpenAICompatProvider struct: baseURL, apiKey, model, httpClient, info
   - LLMProvider インターフェースを実装
@@ -652,19 +652,19 @@ Phase 7: T-2101, T-2102
   - XMLフォールバックをChat()内に統合
   - 推定: ~300行 | 依存: T-8101
 
-- [ ] T-8104: OllamaProvider 実装（internal/llm/ollama.go）
+- [x] T-8104: OllamaProvider 実装（internal/llm/ollama.go）
   - OpenAICompatProvider 埋め込み + Ollama固有API
   - ModelManager インターフェース実装（/api/tags, /api/pull）
   - CheckHealth() で /api/tags をチェック
   - 推定: ~120行 | 依存: T-8103
 
-- [ ] T-8105: Agent のインターフェース依存化
+- [x] T-8105: Agent のインターフェース依存化
   - Agent.client *llm.Client → Agent.provider llm.LLMProvider
   - NewAgent() の引数変更
   - callLLM() を provider.Chat() に変更
   - 推定: ~30行差分 | 依存: T-8101
 
-- [ ] T-8106: main.go の更新
+- [x] T-8106: main.go の更新
   - createLLMClient() → createProvider() に変更
   - OllamaProvider を生成して Agent に渡す
   - checkOllamaConnection → provider.CheckHealth() に統一
@@ -672,13 +672,13 @@ Phase 7: T-2101, T-2102
   - ShutdownManager の型変更
   - 推定: ~50行差分 | 依存: T-8104, T-8105
 
-- [ ] T-8107: Config 構造体の拡張
+- [x] T-8107: Config 構造体の拡張
   - ProviderConfig struct: Name, Type, URL, APIKey, Model, Role, Priority, Options
   - Config.Providers []ProviderConfig 追加
   - OllamaHost → Providers への内部変換（後方互換）
   - 推定: ~60行 | 依存: T-8101
 
-- [ ] T-8108: 既存テストの更新
+- [~] T-8108: 既存テストの更新
   - routing_test.go のプロバイダー型対応
   - agent テストのモック更新（LLMProvider インターフェースモック）
   - 全テストパス確認
@@ -690,7 +690,7 @@ Phase 7: T-2101, T-2102
 
 **目標**: llama-server（llama.cpp）および llama.app を LLM バックエンドとして使えるようにする。
 
-- [ ] T-8201: LlamaServerProvider 実装（internal/llm/llama_server.go）
+- [x] T-8201: LlamaServerProvider 実装（internal/llm/llama_server.go）
   - OpenAICompatProvider をそのまま使用（エイリアス的実装）
   - モデル管理なし（起動時にモデル指定済み）
   - CheckHealth() で /v1/models エンドポイントをチェック
@@ -708,7 +708,7 @@ Phase 7: T-2101, T-2102
   - DetectedProvider struct: Name, URL, Models[]
   - 推定: ~120行 | 依存: T-8103, T-8104
 
-- [ ] T-8203: CLIフラグ拡張
+- [x] T-8203: CLIフラグ拡張
   - --provider <name> : プロバイダー指定
   - --url <url> : プロバイダーURL
   - --api-key <key> : APIキー
@@ -718,7 +718,7 @@ Phase 7: T-2101, T-2102
   - --host は後方互換として残す（= --provider ollama --url <host>）
   - 推定: ~40行 | 依存: T-8107
 
-- [ ] T-8204: main.go のプロバイダー初期化フロー改修
+- [x] T-8204: main.go のプロバイダー初期化フロー改修
   - 自動検出 → 検出結果表示 → プロバイダー生成
   - CLI指定があればそちらを優先
   - config.json の providers[] からの読み込み
@@ -737,14 +737,14 @@ Phase 7: T-2101, T-2102
 
 **目標**: OpenAI, Anthropic, DeepSeek, GLM/CodeGeeX 等のクラウドLLMに対応。
 
-- [ ] T-8301: APIキー管理（internal/config/apikey.go）
+- [x] T-8301: APIキー管理（internal/config/apikey.go）
   - 環境変数からの読み込み（OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY 等）
   - config.json 内の "${ENV_VAR}" 形式の展開
   - APIキーの存在確認・バリデーション
   - APIキーをログ/エラーメッセージに含めない保護
   - 推定: ~60行 | 依存: T-8107
 
-- [ ] T-8302: OpenAI互換クラウドプロバイダー群
+- [x] T-8302: OpenAI互換クラウドプロバイダー群
   - OpenAICompatProvider の URL + APIKey を変えるだけで対応:
     - OpenAI: https://api.openai.com/v1
     - DeepSeek: https://api.deepseek.com/v1
@@ -757,7 +757,7 @@ Phase 7: T-2101, T-2102
   - プロバイダー名 → OpenAICompatProvider 生成のファクトリ関数
   - 推定: ~100行 | 依存: T-8103, T-8301
 
-- [ ] T-8303: AnthropicProvider 実装（internal/llm/anthropic.go）
+- [~] T-8303: AnthropicProvider 実装（internal/llm/anthropic.go）
   - ChatRequest → Anthropic Messages API 変換
     - messages[].role: "system" → system パラメータ（トップレベル）
     - tools[].function → tools[].name + input_schema
@@ -770,7 +770,7 @@ Phase 7: T-2101, T-2102
   - ストリーミング対応（SSE形式は同じだがイベント構造が異なる）
   - 推定: ~250行 | 依存: T-8101
 
-- [ ] T-8304: プロバイダーファクトリ（internal/llm/factory.go）
+- [x] T-8304: プロバイダーファクトリ（internal/llm/factory.go）
   - NewProvider(cfg ProviderConfig) (LLMProvider, error)
   - プロバイダー名による分岐:
     - "ollama" → OllamaProvider
@@ -792,7 +792,7 @@ Phase 7: T-2101, T-2102
 
 **目標**: メインプロバイダー失敗時に自動的に次のプロバイダーへ切り替え。
 
-- [ ] T-8401: ProviderChain 実装（internal/llm/chain.go）
+- [~] T-8401: ProviderChain 実装（internal/llm/chain.go）
   - ProviderChain struct: providers []ChainEntry, current int
   - ChainEntry struct: Provider, Role(main/sub/fallback), Priority, Condition
   - LLMProvider インターフェース実装（透過的に使える）
@@ -840,7 +840,7 @@ Phase 7: T-2101, T-2102
 
 **目標**: 初心者が何も設定しなくても自動で最適なプロバイダーを選択。
 
-- [ ] T-8501: スマート初期化フロー（main.go 統合）
+- [~] T-8501: スマート初期化フロー（main.go 統合）
   - 起動時の処理フロー:
     1. config.json の providers[] があれば → そこからチェーン構築
     2. CLI --provider 指定があれば → その単体プロバイダー
@@ -879,7 +879,7 @@ Phase 7: T-2101, T-2102
 
 **目標**: 旧 ModelRouter を ProviderChain に統合し、コードの二重管理を解消。
 
-- [ ] T-8601: ModelRouter → ProviderChain マイグレーション
+- [~] T-8601: ModelRouter → ProviderChain マイグレーション
   - 旧 ModelRouter の main/sidecar 機能を ProviderChain の main/sub に統合
   - AutoSelectModel(taskType) を ChainCondition.TaskType に移行
   - KeepAliveAlive() をプロバイダーレベルに移行
@@ -953,12 +953,12 @@ P6 (統合):
 ### 実装優先順位
 
 ```
-★★★ 必須（P1）: インターフェース導入 — これなしに先に進めない
-★★☆ 高  （P2）: llama-server — ローカルLLM利用者の選択肢拡大
-★★☆ 高  （P3）: クラウド対応 — GLM/DeepSeek等の利用
-★☆☆ 中  （P4）: フォールバック — 安定性向上
-★☆☆ 中  （P5）: ゼロコンフィグ — 初心者UX
-☆☆☆ 低  （P6）: 旧コード整理 — 技術的負債解消
+✅✅✅ 完了（P1）: インターフェース導入 — 全タスク完了
+✅✅☆ ほぼ完了（P2）: llama-server — AutoDetect未実装
+✅✅☆ ほぼ完了（P3）: クラウド対応 — Anthropic専用API・テスト未
+★☆☆ 中  （P4）: フォールバック — chain.go Phase1のみ
+★☆☆ 中  （P5）: ゼロコンフィグ — 部分実装
+☆☆☆ 低  （P6）: 旧コード整理 — ModelRouter共存中
 ```
 
 ---
@@ -991,3 +991,206 @@ T-000 → T-101 → T-201 → T-203 → T-301 → T-401 → T-501 → T-1101 →
 ```
 
 この順で実装すれば、**Phase 1-3 の途中（約3週間）で Ollama と対話 + Bash実行ができるミニマムバージョン**が動作する。残りのツールは順次追加していく形になる。
+
+---
+
+## Phase 9: UX 改善（セッション対応済み）
+
+> 前セッションで対応した機能群。
+
+### T-9000: セッション・モデル関連
+
+- [x] T-9001: セッション再開パス二重化バグ修正
+  - `getSessionDir()` が `sessions/sessions/` の二重パスを生成していた
+  - 変更: cmd/vibe/main.go
+
+- [x] T-9002: `--resume list` サポート
+  - `resumeSession()` にセッション一覧表示機能を追加
+  - 変更: cmd/vibe/main.go
+
+- [x] T-9003: Ollama モデル確認・自動pull + ダウンロード進捗表示
+  - 変更: cmd/vibe/main.go
+
+- [x] T-9004: `/models` モデル一覧 + 番号選択で切替
+  - `ModelSwitcher` インターフェース追加
+  - 変更: internal/llm/provider.go, cmd/vibe/main.go
+
+- [x] T-9005: `/model <name>` 直接モデル切替
+  - 変更: cmd/vibe/main.go
+
+---
+
+### T-9100: インタラクティブ入力
+
+- [x] T-9101: タブ補完（スラッシュコマンド）
+  - `CommandHandler.CommandNames()` で補完候補を生成
+  - 変更: internal/ui/lineeditor.go (新規), internal/ui/commands.go
+
+- [x] T-9102: コマンド履歴（↑/↓キー）
+  - 変更: internal/ui/lineeditor.go
+
+- [x] T-9103: インタラクティブ行エディタ
+  - raw mode, ←/→カーソル, Home/End, Ctrl+A/E/U/W/K/L, Delete, CJK幅対応
+  - 変更: internal/ui/lineeditor.go (新規), terminal.go, readline.go
+
+---
+
+### T-9200: クイックコマンド
+
+- [x] T-9201: `/q` エイリアス（/exit, /quit と同等）
+  - 変更: internal/ui/commands.go, cmd/vibe/main.go
+
+- [x] T-9202: `/yes` `/no`（自動承認モード切替）
+  - cfg.AutoApprove の切替 + カラー表示
+  - 変更: cmd/vibe/main.go
+
+- [x] T-9203: `/init`（CLAUDE.md テンプレート作成）
+  - cwd に CLAUDE.md テンプレートを生成、既存チェック付き
+  - 変更: cmd/vibe/main.go
+
+- [x] T-9204: `/help` 全面改修（セクション分け: Commands, Sandbox, Keyboard, Startup Flags）
+  - 変更: internal/ui/commands.go
+
+---
+
+### T-9300: バグ修正
+
+- [x] T-9301: ステータスプレフィックスバグ修正
+- [x] T-9302: Repeat 負数パニック修正
+- [x] T-9303: 接続エラー時の再セットアップ
+
+---
+
+## Phase 10: Agent Skills（Python v1.0 移植）
+
+> Python版 vibe-local v1.0 の Agent Skills 機能を移植。
+
+### 設計
+
+```
+~/.config/vibe-local-go/skills/   ← グローバルスキル
+.vibe-local/skills/               ← プロジェクトスキル（cwdベース）
+```
+
+段階的開示:
+- L1 (起動時): YAML frontmatter → システムプロンプトに注入
+- L2 (トリガー時): SKILL.md 本文 → read_file で読込
+- L3 (必要時): 追加ファイル → read_file/bash で読込・実行
+
+### タスク
+
+- [x] T-10001: `internal/skill/skill.go` 新規作成
+  - SkillMeta 構造体（Name, Description, Dir, SkillFile, Source）
+  - SkillManager — LoadSkills, GetSkillMetadata, GetSkillByName
+  - YAML frontmatter パーサー（strings ベース、外部ライブラリ不要）
+
+- [x] T-10002: `internal/config/prompt.go` 拡張
+  - BuildSystemPrompt(cfg, skillMetadata ...string) に可変長引数追加
+  - スキルメタデータをシステムプロンプトに注入
+
+- [x] T-10003: `cmd/vibe/main.go` 起動フロー統合
+  - SkillManager 初期化 → LoadSkills → createSession / createCommandHandler に渡す
+
+- [x] T-10004: `/skills` スラッシュコマンド
+  - registerSkillCommands() でスキル一覧・配置場所・作成方法を表示
+
+- [x] T-10005: `/help` 更新（Skills セクション追加）
+
+---
+
+## Phase 11: MCP Client（Python v1.0 移植）
+
+> Model Context Protocol クライアント実装。外部ツールサーバーとの連携。
+
+### 設定ファイル（Claude Code互換）
+
+```json
+// ~/.config/vibe-local-go/mcp.json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {}
+    }
+  }
+}
+```
+
+### タスク
+
+- [x] T-11001: `internal/mcp/client.go` 新規作成
+  - JSON-RPC 2.0 over stdio クライアント
+  - Initialize() → tools/list → tools/call
+  - プロセス起動・停止管理
+
+- [x] T-11002: `internal/mcp/manager.go` 新規作成
+  - 複数サーバー管理（LoadConfig, StartAll, StopAll）
+  - mcp.json パーサー（プロジェクト → グローバル探索）
+  - FindToolServer() でツール名からサーバー逆引き
+
+- [x] T-11003: `internal/mcp/tool_adapter.go` 新規作成
+  - MCPToolAdapter — tool.Tool インターフェース実装
+  - ツール名: `mcp_{server}_{tool}` 形式
+  - RegisterMCPTools() で既存 tool.Registry にそのまま登録
+  - inputSchema → tool.ParameterSchema 変換
+
+- [x] T-11004: `cmd/vibe/main.go` MCP統合
+  - 起動フロー + ツール登録 + シャットダウン時子プロセス終了
+
+- [x] T-11005: `/mcp` スラッシュコマンド + `/help` 更新
+  - MCP接続状況・ツール一覧表示
+
+---
+
+## Phase 12: Plan/Act + Git Checkpoint（Python v1.0 移植）
+
+- [ ] T-12001: Agent に PlanMode フラグ追加
+  - `agent.planMode bool`
+  - planMode=true 時は write_file, edit_file, bash の書込み系を拒否
+  - read_file, glob, grep は許可
+  - 変更: internal/agent/agent.go
+
+- [ ] T-12002: `/plan` `/execute` コマンド登録
+  - 変更: cmd/vibe/main.go
+
+- [ ] T-12003: `internal/git/checkpoint.go` 新規作成
+  - CreateCheckpoint() — `git stash push -m "vibe-checkpoint-{timestamp}"`
+  - Rollback() — `git stash pop`
+  - `/undo` コマンドから呼び出し
+  - git リポジトリ外では無効化
+
+---
+
+## Phase 13: Auto Test + UX 改善（Python v1.0-v1.3 移植） ✅ COMPLETE
+
+- [x] T-13001: `internal/agent/autotest.go` 新規作成
+  - テストフレームワーク自動検出 (pytest / npm test / go test / cargo test)
+  - TestFrameworkDetector 実装：.py → pytest, package.json → npm test, go.mod → go test, Cargo.toml → cargo test
+  - write_file/edit_file 後に自動テスト実行（runAutoTestIfNeeded）
+  - テスト失敗時: エラー出力を session.AddToolResults で LLM に返す
+  - `/autotest [on|off]` コマンド実装
+  - 変更ファイル: internal/agent/autotest.go (227行), agent.go, main.go, commands.go
+
+- [x] T-13002: ESC 割り込み
+  - Agent.Run() のコンテキストキャンセル処理
+  - context.Done() チェックで割り込み検出、"Agent execution interrupted" メッセージ表示
+  - LineEditor で既に ESC キー処理が実装済み → context cancel で応答
+  - 変更: internal/agent/agent.go
+
+- [x] T-13003: ステータス行 (`💭 Thinking... 3s · ↓ 1.2k tokens`)
+  - StatusLineUpdater クラス実装（terminal.go に追加）
+  - 100ms ごとにリアルタイム更新（time.Ticker + goroutine）
+  - 経過時間とトークン数を表示、sync.RWMutex で同期処理
+  - LLM 呼び出し時に statusLine.Start/Stop で統合
+  - 変更: internal/ui/terminal.go, agent.go
+
+---
+
+## 将来検討（低優先度）
+
+| # | 機能 | 状態 | 備考 |
+|---|------|------|------|
+| F1 | File Watcher (`/watch`) | ⬜ | Python v1.1 |
+| F2 | Parallel Agents | ⬜ | Python v1.1 (難易度高) |
+| F3 | Type-ahead 入力 | ⬜ | Python v1.3 |

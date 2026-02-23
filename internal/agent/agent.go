@@ -40,7 +40,9 @@ type Agent struct {
 	config                *config.Config
 	loopDetector          *LoopDetector
 	spinner               *ui.ToolSpinner
+	statusLine            *ui.StatusLineUpdater
 	scriptValidationCount int // Track number of script validation attempts
+	autoTestEnabled       bool // Enable automatic test execution after file edits
 }
 
 // NewAgent creates a new agent
@@ -54,16 +56,28 @@ func NewAgent(
 	cfg *config.Config,
 ) *Agent {
 	return &Agent{
-		provider:      provider,
-		registry:      registry,
-		permissionMgr: permissionMgr,
-		validator:     validator,
-		session:       sess,
-		terminal:      term,
-		config:        cfg,
-		loopDetector:  NewLoopDetector(),
-		spinner:       ui.NewToolSpinner(term),
+		provider:        provider,
+		registry:        registry,
+		permissionMgr:   permissionMgr,
+		validator:       validator,
+		session:         sess,
+		terminal:        term,
+		config:          cfg,
+		loopDetector:    NewLoopDetector(),
+		spinner:         ui.NewToolSpinner(term),
+		statusLine:      ui.NewStatusLineUpdater(term),
+		autoTestEnabled: false, // Disabled by default, enable with /autotest on
 	}
+}
+
+// SetAutoTestEnabled sets whether auto test is enabled
+func (a *Agent) SetAutoTestEnabled(enabled bool) {
+	a.autoTestEnabled = enabled
+}
+
+// IsAutoTestEnabled returns whether auto test is enabled
+func (a *Agent) IsAutoTestEnabled() bool {
+	return a.autoTestEnabled
 }
 
 // Run executes the agent loop
@@ -81,6 +95,8 @@ func (a *Agent) Run(ctx context.Context, userInput string) error {
 	for iteration < MaxIterations {
 		select {
 		case <-ctx.Done():
+			// Context cancelled (ESC/Ctrl+C)
+			a.terminal.PrintWarning("Agent execution interrupted")
 			return ctx.Err()
 		default:
 		}
@@ -98,12 +114,17 @@ func (a *Agent) Run(ctx context.Context, userInput string) error {
 		messages := a.session.GetMessagesForLLM()
 		tools := a.registry.GetSchemas()
 
-		// Call LLM (スピナー表示)
-		a.spinner.Start("🧠 Thinking...")
+		// Call LLM (ステータス行表示)
+		a.statusLine.Start("💭 Thinking...")
 		response, err := a.callLLM(ctx, messages, tools)
-		a.spinner.Stop()
+		a.statusLine.Stop()
 		if err != nil {
 			return fmt.Errorf("LLM call failed: %w", err)
+		}
+
+		// Update status line with token count
+		if response.PromptTokens > 0 || response.CompletionTokens > 0 {
+			a.statusLine.SetTokenCount(response.PromptTokens + response.CompletionTokens)
 		}
 
 		// トークン使用量を表示（Python版準拠）
@@ -322,6 +343,21 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 
 	// Show tool result
 	a.terminal.ShowToolResult(toolResult)
+
+	// Run auto test if enabled and this is a file write operation
+	if a.autoTestEnabled && (toolName == "write_file" || toolName == "edit_file") && !toolResult.IsError {
+		// Extract file path from arguments
+		var args map[string]interface{}
+		if err := json.Unmarshal(json.RawMessage(arguments), &args); err == nil {
+			if filePath, ok := args["path"].(string); ok {
+				a.terminal.Println("🔄 Running auto tests...")
+				if !a.runAutoTestIfNeeded(filePath) {
+					// Tests failed - the error has been added to session
+					a.terminal.PrintWarning("⚠️  Auto tests failed - LLM will attempt to fix")
+				}
+			}
+		}
+	}
 
 	return ToolResult{
 		ToolCallID: toolCall.ID,
