@@ -754,7 +754,7 @@ func (a *Agent) validateGeneratedScripts(ctx context.Context, toolCalls []sessio
 		a.terminal.Println(fmt.Sprintf("  Error: %s", result.ErrorType))
 		a.terminal.Println(fmt.Sprintf("  Suggestion: %s", result.Suggestion))
 
-		return fmt.Errorf(errorMsg)
+		return fmt.Errorf("%s", errorMsg)
 	}
 
 	// Success
