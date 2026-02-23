@@ -106,17 +106,26 @@ func (ld *LoopDetector) hasRepeatingPattern() bool {
 	}
 
 	// Check for ABA pattern (Tool A, Tool B, Tool A again)
+	// Only flag as loop if both the tool name AND arguments are similar
 	lastThree := ld.history[len(ld.history)-3:]
 	if lastThree[0].ToolName == lastThree[2].ToolName {
-		return true
+		// Additional check: Only flag as loop if arguments are similar
+		// This avoids false positives for legitimate patterns like:
+		// bash (setup) -> write_file (script) -> bash (run)
+		// vs actual loops: bash (run X fails) -> write (fix X) -> bash (run X)
+		if lastThree[0].Arguments == lastThree[2].Arguments {
+			return true
+		}
 	}
 
-	// Check for simple repetition of same tool
+	// Check for simple repetition of same tool with same arguments
 	recentCount := 0
 	lastToolName := ld.history[len(ld.history)-1].ToolName
+	lastArguments := ld.history[len(ld.history)-1].Arguments
 
 	for i := len(ld.history) - 1; i >= 0; i-- {
-		if ld.history[i].ToolName == lastToolName {
+		if ld.history[i].ToolName == lastToolName &&
+			ld.history[i].Arguments == lastArguments {
 			recentCount++
 		} else {
 			break

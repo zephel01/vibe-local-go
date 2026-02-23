@@ -36,20 +36,20 @@ vibe-local-goはGo言語で書かれた、オフラインで動作するAIコー
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-local-go-darwin-arm64 -o /usr/local/bin/vibe-local-go
-chmod +x /usr/local/bin/vibe-local-go
+curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-arm64 -o /usr/local/bin/vibe
+chmod +x /usr/local/bin/vibe
 
 # macOS (Intel)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-local-go-darwin-amd64 -o /usr/local/bin/vibe-local-go
-chmod +x /usr/local/bin/vibe-local-go
+curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-amd64 -o /usr/local/bin/vibe
+chmod +x /usr/local/bin/vibe
 
 # Linux (amd64)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-local-go-linux-amd64 -o /usr/local/bin/vibe-local-go
-chmod +x /usr/local/bin/vibe-local-go
+curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-linux-amd64 -o /usr/local/bin/vibe
+chmod +x /usr/local/bin/vibe
 
 # Linux (arm64)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-local-go-linux-arm64 -o /usr/local/bin/vibe-local-go
-chmod +x /usr/local/bin/vibe-local-go
+curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-linux-arm64 -o /usr/local/bin/vibe
+chmod +x /usr/local/bin/vibe
 ```
 
 ### ソースからビルド
@@ -57,7 +57,7 @@ chmod +x /usr/local/bin/vibe-local-go
 ```bash
 git clone https://github.com/zephel01/vibe-local-go.git
 cd vibe-local-go
-go build -o vibe-local-go ./cmd/vibe
+go build -o vibe ./cmd/vibe
 ```
 
 ## クイックスタート
@@ -84,10 +84,10 @@ ollama pull qwen3:8b
 ollama pull qwen3-coder:30b
 ```
 
-#### 3. vibe-local-goを起動
+#### 3. vibeを起動
 
 ```bash
-vibe-local-go
+vibe
 ```
 
 ### オプション B: クラウドLLM (OpenAI, Google Gemini, など)
@@ -108,10 +108,10 @@ export ZAI_API_KEY="your-key"
 # ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY等
 ```
 
-#### 2. vibe-local-goを起動
+#### 2. vibeを起動
 
 ```bash
-vibe-local-go
+vibe
 ```
 
 自動検出されるか、プロバイダー管理メニューで選択してください。
@@ -119,7 +119,7 @@ vibe-local-go
 ### オプション C: 複数プロバイダーを登録
 
 ```bash
-vibe-local-go
+vibe
 ```
 
 起動後、対話モードで以下を実行:
@@ -143,7 +143,7 @@ vibe-local-go
 デフォルトの対話モードでは、AIとチャットしながらコードを生成・実行できます。
 
 ```bash
-vibe-local-go
+vibe
 ```
 
 ### ワンショットモード
@@ -151,7 +151,7 @@ vibe-local-go
 1回だけ質問して終了するモードです。
 
 ```bash
-vibe-local-go -p "Pythonでじゃんけんゲームを作って"
+vibe -p "Pythonでじゃんけんゲームを作って"
 ```
 
 ### セッション復旧
@@ -160,13 +160,13 @@ vibe-local-go -p "Pythonでじゃんけんゲームを作って"
 
 ```bash
 # 直近のセッションを復旧
-vibe-local-go --resume last
+vibe --resume last
 
 # 特定のセッションを復旧
-vibe-local-go --resume sess_1234567890
+vibe --resume sess_1234567890
 
 # セッション一覧を表示
-vibe-local-go --list-sessions
+vibe --list-sessions
 ```
 
 ## コマンドラインオプション
@@ -191,28 +191,28 @@ vibe-local-go --list-sessions
 
 ```bash
 # ローカルLLM（Ollama）
-vibe-local-go --provider ollama --model qwen3:8b
+vibe --provider ollama --model qwen3:8b
 
 # クラウドLLM（OpenAI）
-vibe-local-go --provider openai --api-key sk-... --model gpt-4.1
+vibe --provider openai --api-key sk-... --model gpt-4.1
 
 # クラウドLLM（Google Gemini）
-vibe-local-go --provider google --api-key AIzaSy... --model gemini-2.5-flash
+vibe --provider google --api-key AIzaSy... --model gemini-2.5-flash
 
 # クラウドLLM（Z.AI 国際版）
-vibe-local-go --provider zai --api-key your-key --model glm-4.7
+vibe --provider zai --api-key your-key --model glm-4.7
 
 # ワンショット
-vibe-local-go -p "現在のディレクトリのファイルを一覧にして"
+vibe -p "現在のディレクトリのファイルを一覧にして"
 
 # 自動許可モード
-vibe-local-go -y
+vibe -y
 
 # 直近セッションを復旧
-vibe-local-go --resume last
+vibe --resume last
 
 # トークン数を調整
-vibe-local-go --max-tokens 4096 --temperature 0.5
+vibe --max-tokens 4096 --temperature 0.5
 ```
 
 ## 対話コマンド
@@ -442,10 +442,10 @@ vibe-local-go/
 
 ```bash
 # 推奨（安全）
-vibe-local-go
+vibe
 
 # 上級者のみ（自己責任）
-vibe-local-go -y
+vibe -y
 ```
 
 ### 組み込みセキュリティ

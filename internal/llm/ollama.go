@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -163,12 +164,24 @@ func (o *OllamaProvider) ListModels(ctx context.Context) ([]string, error) {
 	return models, nil
 }
 
-// PullModel モデルをダウンロード
+// PullProgressCallback ダウンロード進捗コールバック関数の型
+// status: 現在のステータス ("pulling manifest", "downloading ...", "verifying sha256 digest", "writing manifest", "success" 等)
+// completed: ダウンロード済みバイト数
+// total: 総バイト数（0の場合はサイズ不明）
+type PullProgressCallback func(status string, completed, total int64)
+
+// PullModel モデルをダウンロード（進捗表示なし・後方互換）
 func (o *OllamaProvider) PullModel(ctx context.Context, name string) error {
+	return o.PullModelWithProgress(ctx, name, nil)
+}
+
+// PullModelWithProgress モデルをダウンロード（進捗コールバック付き）
+func (o *OllamaProvider) PullModelWithProgress(ctx context.Context, name string, progressFn PullProgressCallback) error {
 	url := o.ollamaURL + "/api/pull"
+	stream := progressFn != nil
 	payload := map[string]interface{}{
 		"name":   name,
-		"stream": false,
+		"stream": stream,
 	}
 
 	jsonPayload, err := json.Marshal(payload)
@@ -196,6 +209,52 @@ func (o *OllamaProvider) PullModel(ctx context.Context, name string) error {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to pull model %s: %s", name, string(body))
+	}
+
+	if !stream {
+		// 非ストリーミング: レスポンスを読み捨てて完了
+		io.Copy(io.Discard, resp.Body)
+		return nil
+	}
+
+	// ストリーミング: JSON Lines を1行ずつ読んで進捗コールバックを呼ぶ
+	// Ollama /api/pull のレスポンス形式:
+	// {"status":"pulling manifest"}
+	// {"status":"downloading abc123","digest":"sha256:...","total":4567890,"completed":1234567}
+	// {"status":"verifying sha256 digest"}
+	// {"status":"writing manifest"}
+	// {"status":"success"}
+	scanner := bufio.NewScanner(resp.Body)
+	// 大きいレスポンス行に対応（デフォルト64KBでは不足する場合がある）
+	scanner.Buffer(make([]byte, 0, 256*1024), 256*1024)
+
+	var pullResp struct {
+		Status    string `json:"status"`
+		Digest    string `json:"digest"`
+		Total     int64  `json:"total"`
+		Completed int64  `json:"completed"`
+		Error     string `json:"error"`
+	}
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		if err := json.Unmarshal(line, &pullResp); err != nil {
+			continue // パースできない行はスキップ
+		}
+
+		if pullResp.Error != "" {
+			return fmt.Errorf("pull error: %s", pullResp.Error)
+		}
+
+		progressFn(pullResp.Status, pullResp.Completed, pullResp.Total)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading pull response: %w", err)
 	}
 
 	return nil

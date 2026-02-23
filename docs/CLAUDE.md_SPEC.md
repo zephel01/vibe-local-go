@@ -106,7 +106,7 @@ func ExampleFunction() {
 1. Make code changes
 2. Run `go test ./...` to verify
 3. Run `gofmt` to format code
-4. Run `go build -o vibe-local-go ./cmd/vibe` to build
+4. Run `go build -o vibe ./cmd/vibe` to build
 ```
 
 ## 完全な例
@@ -158,8 +158,8 @@ internal/
 2. Run tests: `go test ./... -v`
 3. Format code: `gofmt -w .`
 4. Check for issues: `go vet ./...`
-5. Build binary: `go build -o vibe-local-go ./cmd/vibe`
-6. Test manually: `./vibe-local-go`
+5. Build binary: `go build -o vibe ./cmd/vibe`
+6. Test manually: `./vibe`
 
 ## Testing
 - Unit tests for each package

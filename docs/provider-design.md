@@ -637,8 +637,8 @@ internal/llm/
 ### 既存ユーザーへの影響
 
 ```
-変更前: vibe-local-go --model qwen3:8b --host http://localhost:11434
-変更後: vibe-local-go --model qwen3:8b --host http://localhost:11434  ← 同じ
+変更前: vibe --model qwen3:8b --host http://localhost:11434
+変更後: vibe --model qwen3:8b --host http://localhost:11434  ← 同じ
 
 --host は内部で providers[0] = {name: "ollama", url: <host>} に変換。
 config.json の "OllamaHost" も引き続き動作。
@@ -713,14 +713,14 @@ func (a *Agent) callLLM(ctx context.Context, messages []llm.Message, tools []llm
 
 ```bash
 # 何も設定しなくても自動検出で動く
-vibe-local-go
+vibe
 ```
 
 ### 例2: llama-server をメインで使う
 
 ```bash
 # llama-server 起動済み (localhost:8080)
-vibe-local-go --provider llama-server --url http://localhost:8080
+vibe --provider llama-server --url http://localhost:8080
 ```
 
 ### 例3: ローカルメイン + クラウドフォールバック
@@ -737,13 +737,13 @@ vibe-local-go --provider llama-server --url http://localhost:8080
 ### 例4: GLM / CodeGeeX でコーディング
 
 ```bash
-vibe-local-go --provider glm --api-key $GLM_API_KEY --model glm-4-plus
+vibe --provider glm --api-key $GLM_API_KEY --model glm-4-plus
 ```
 
 ### 例5: OpenRouter 経由で好きなモデル
 
 ```bash
-vibe-local-go --provider openrouter --api-key $OPENROUTER_API_KEY --model anthropic/claude-sonnet-4
+vibe --provider openrouter --api-key $OPENROUTER_API_KEY --model anthropic/claude-sonnet-4
 ```
 
 ### 例6: ローカル2台構成
