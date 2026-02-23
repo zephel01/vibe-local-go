@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"sort"
@@ -236,7 +235,6 @@ func getDefaultFeatures(providerName string) Features {
 		NativeFunctionCalling: true,
 		ModelManagement:       false,
 		Streaming:             true,
-		Vision:                false,
 	}
 
 	// Only Ollama has model management
@@ -244,11 +242,10 @@ func getDefaultFeatures(providerName string) Features {
 		features.ModelManagement = true
 	}
 
-	// LiteLLM supports most features
+	// LiteLLM supports most features (same as other OpenAI-compatible servers)
 	if providerName == "litellm" {
 		features.NativeFunctionCalling = true
 		features.Streaming = true
-		features.Vision = true // May support vision depending on backend model
 	}
 
 	return features

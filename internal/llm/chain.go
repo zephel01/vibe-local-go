@@ -102,10 +102,6 @@ func (c *ProviderChain) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 
 // chatWithFallback プロバイダーチェーンでフォールバック付きチャット
 func (c *ProviderChain) chatWithFallback(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	c.mu.RLock()
-	initialIdx := c.current
-	c.mu.RUnlock()
-
 	// 現在のプロバイダーから開始してリトライ
 	for attempt := 0; attempt < len(c.entries); attempt++ {
 		c.mu.RLock()
@@ -183,10 +179,6 @@ func (c *ProviderChain) ChatStream(ctx context.Context, req *ChatRequest) (<-cha
 
 // chatStreamWithFallback ストリーミングでフォールバック付きチャット
 func (c *ProviderChain) chatStreamWithFallback(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
-	c.mu.RLock()
-	initialIdx := c.current
-	c.mu.RUnlock()
-
 	// 現在のプロバイダーから開始してリトライ
 	for attempt := 0; attempt < len(c.entries); attempt++ {
 		c.mu.RLock()

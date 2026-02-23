@@ -419,8 +419,4 @@ func TestGetDefaultFeatures_LiteLLM(t *testing.T) {
 	if !features.Streaming {
 		t.Error("Expected Streaming=true for litellm")
 	}
-
-	if !features.Vision {
-		t.Error("Expected Vision=true for litellm (may support vision)")
-	}
 }
