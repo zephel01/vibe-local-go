@@ -247,7 +247,7 @@
 
 ### T-800: Web ツール
 
-- [ ] T-801: WebFetchTool（internal/tool/web_fetch.go）
+- [x] T-801: WebFetchTool（internal/tool/web_fetch.go）
   - Python版: 2213-2346行, 134行
   - HTTP GET + HTML→テキスト変換
   - SSRF 防御（プライベートIP ブロック: 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fd00::/8）
@@ -256,7 +256,7 @@
   - タイムアウト管理
   - 推定: ~130行 | 依存: T-301
 
-- [ ] T-802: WebSearchTool（internal/tool/web_search.go）
+- [x] T-802: WebSearchTool（internal/tool/web_search.go）
   - Python版: 2348-2480行, 133行
   - DuckDuckGo HTML エンドポイント検索
   - レート制限: 2秒間隔、セッション50回上限
