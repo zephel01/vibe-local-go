@@ -43,6 +43,7 @@ type Agent struct {
 	statusLine            *ui.StatusLineUpdater
 	scriptValidationCount int // Track number of script validation attempts
 	autoTestEnabled       bool // Enable automatic test execution after file edits
+	planMode              bool // When true, reject write_file/edit_file/bash
 }
 
 // NewAgent creates a new agent
@@ -67,6 +68,7 @@ func NewAgent(
 		spinner:         ui.NewToolSpinner(term),
 		statusLine:      ui.NewStatusLineUpdater(term),
 		autoTestEnabled: false, // Disabled by default, enable with /autotest on
+		planMode:        false, // Disabled by default, enable with /plan on
 	}
 }
 
@@ -78,6 +80,16 @@ func (a *Agent) SetAutoTestEnabled(enabled bool) {
 // IsAutoTestEnabled returns whether auto test is enabled
 func (a *Agent) IsAutoTestEnabled() bool {
 	return a.autoTestEnabled
+}
+
+// SetPlanMode sets whether plan mode is enabled (write operations disabled)
+func (a *Agent) SetPlanMode(enabled bool) {
+	a.planMode = enabled
+}
+
+// IsPlanMode returns whether plan mode is enabled
+func (a *Agent) IsPlanMode() bool {
+	return a.planMode
 }
 
 // Run executes the agent loop
@@ -282,6 +294,22 @@ func (a *Agent) executeToolCallsWithResults(ctx context.Context, toolCalls []ses
 func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCall) ToolResult {
 	toolName := toolCall.Function.Name
 	arguments := toolCall.Function.Arguments
+
+	// Check plan mode first (before permission check)
+	if a.planMode {
+		writeTools := map[string]bool{
+			"write_file": true,
+			"edit_file":  true,
+			"bash":       true,
+		}
+		if writeTools[toolName] {
+			return ToolResult{
+				ToolCallID: toolCall.ID,
+				IsSuccess:   false,
+				Error:       fmt.Sprintf("Cannot execute %s in plan mode. Use '/plan off' to allow modifications.", toolName),
+			}
+		}
+	}
 
 	// Get tool
 	toolInst, exists := a.registry.Get(toolName)

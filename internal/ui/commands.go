@@ -186,6 +186,8 @@ func (ch *CommandHandler) ShowHelp() {
 	ch.terminal.Printf("  /mcp               MCPサーバー状況・ツール一覧\n")
 	ch.terminal.PrintColored(ColorCyan, "  ━━ Auto Test ━━━━━━━━━━━━━━━━━━━━━━\n")
 	ch.terminal.Printf("  /autotest [on|off] ファイル編集後の自動テスト\n")
+	ch.terminal.PrintColored(ColorCyan, "  ━━ Plan Mode ━━━━━━━━━━━━━━━━━━━━━━\n")
+	ch.terminal.Printf("  /plan [on|off]     計画モード（ON時は書込み禁止）\n")
 	ch.terminal.PrintColored(ColorCyan, "  ━━ Sandbox ━━━━━━━━━━━━━━━━━━━━━━━━\n")
 	ch.terminal.Printf("  /sandbox [on|off]  サンドボックス切替\n")
 	ch.terminal.Printf("  /commit [file]     ステージを本番に反映\n")
