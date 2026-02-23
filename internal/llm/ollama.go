@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -18,8 +19,17 @@ type OllamaProvider struct {
 	ollamaURL string // Ollama API用（/api/...）
 }
 
+// normalizeBaseURL ベースURLの末尾 /v1 や / を除去してホストのみにする
+// 例: "http://localhost:1234/v1" → "http://localhost:1234"
+func normalizeBaseURL(rawURL string) string {
+	u := strings.TrimSuffix(rawURL, "/")
+	u = strings.TrimSuffix(u, "/v1")
+	return strings.TrimSuffix(u, "/")
+}
+
 // NewOllamaProvider 新しいOllamaプロバイダーを作成
 func NewOllamaProvider(host, model string) *OllamaProvider {
+	host = normalizeBaseURL(host)
 	info := ProviderInfo{
 		Name:    "ollama",
 		Type:    ProviderTypeLocal,
@@ -40,6 +50,7 @@ func NewOllamaProvider(host, model string) *OllamaProvider {
 
 // FetchLocalProviderModels ローカルプロバイダーからモデルリストを取得
 func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
+	host = normalizeBaseURL(host)
 	var url string
 	switch providerKey {
 	case "ollama":

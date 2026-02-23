@@ -95,12 +95,14 @@ func AutoDetect(ctx context.Context) []DetectedProvider {
 			defer wg.Done()
 
 			// Try to detect custom provider (assume OpenAI-compatible API)
-			url := strings.TrimSuffix(customURL, "/") + "/v1/models"
+			// normalizeBaseURL でベースURLから /v1 などを除去してから付け直す
+			baseURL := normalizeBaseURL(customURL)
+			url := baseURL + "/v1/models"
 			models, err := checkProvider(detectCtx, url, parseLlamaServerModels)
 			if err == nil {
 				resultChan <- DetectedProvider{
 					Name:     "custom",
-					URL:      strings.TrimSuffix(customURL, "/"),
+					URL:      baseURL,
 					Models:   models,
 					Health:   true,
 					Features: getDefaultFeatures("custom"),
@@ -298,7 +300,8 @@ func (dp *DetectedProvider) IsReachable(ctx context.Context) bool {
 		endpoint = "/api/tags"
 	}
 
-	url := dp.URL + endpoint
+	// normalizeBaseURL で /v1 が二重にならないよう正規化
+	url := normalizeBaseURL(dp.URL) + endpoint
 
 	// Create request
 	req, err := http.NewRequestWithContext(checkCtx, "GET", url, nil)
