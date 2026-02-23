@@ -14,6 +14,36 @@ type CloudProviderDef struct {
 	Models       []string // 推奨モデル一覧
 }
 
+// LocalProviderDef ローカルプロバイダーの定義
+type LocalProviderDef struct {
+	Name         string   // 表示名
+	Key          string   // config内キー ("ollama", "lm-studio", "llama-server")
+	DefaultHost  string   // デフォルトホスト
+	DefaultModel string   // デフォルトモデル
+}
+
+// LocalProviders 利用可能なローカルプロバイダー定義
+var LocalProviders = []LocalProviderDef{
+	{
+		Name:         "Ollama",
+		Key:          "ollama",
+		DefaultHost:  "http://localhost:11434",
+		DefaultModel: "qwen3:8b",
+	},
+	{
+		Name:         "LM Studio",
+		Key:          "lm-studio",
+		DefaultHost:  "http://localhost:1234/v1",
+		DefaultModel: "gemma-3-4b-it",
+	},
+	{
+		Name:         "Llama.app (Llama-server)",
+		Key:          "llama-server",
+		DefaultHost:  "http://localhost:8080/v1",
+		DefaultModel: "llama-3-8b-instruct",
+	},
+}
+
 // ProviderCategory カテゴリの表示定義
 type ProviderCategory struct {
 	Key   string // "major", "aggregator", etc.
@@ -270,6 +300,21 @@ func GetProvidersByCategory(category string) []CloudProviderDef {
 		}
 	}
 	return result
+}
+
+// GetLocalProviderDef ローカルプロバイダーの定義を取得
+func GetLocalProviderDef(key string) *LocalProviderDef {
+	for i := range LocalProviders {
+		if LocalProviders[i].Key == key {
+			return &LocalProviders[i]
+		}
+	}
+	return nil
+}
+
+// GetLocalProviders ローカルプロバイダー一覧を取得
+func GetLocalProviders() []LocalProviderDef {
+	return LocalProviders
 }
 
 // NewCloudProvider クラウドプロバイダーを作成（OpenAI互換）

@@ -107,12 +107,27 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 		return NewErrorResult(fmt.Errorf("cannot write to symlink: %s", args.Path)), nil
 	}
 
+	// Fix escaped newlines (\\n -> \n) - handle cases where LLM double-escapes
+	content := args.Content
+	// Replace literal backslash-n with actual newlines
+	// This handles cases where LLM returns "\\n" instead of "\n"
+	for {
+		newContent := strings.ReplaceAll(content, "\\n", "\n")
+		// Also handle other common escapes
+		newContent = strings.ReplaceAll(newContent, "\\t", "\t")
+		newContent = strings.ReplaceAll(newContent, "\\r", "\r")
+		if newContent == content {
+			break
+		}
+		content = newContent
+	}
+
 	// サンドボックスモードの場合はステージングにリダイレクト
 	if t.sandbox != nil && t.sandbox.IsEnabled() {
-		if err := t.sandbox.Stage(resolvedPath, []byte(args.Content)); err != nil {
+		if err := t.sandbox.Stage(resolvedPath, []byte(content)); err != nil {
 			return NewErrorResult(fmt.Errorf("sandbox staging failed: %w", err)), nil
 		}
-		return NewResult(fmt.Sprintf("[sandbox] Staged %d bytes → %s (use /commit to apply, /diff to review)", len(args.Content), args.Path)), nil
+		return NewResult(fmt.Sprintf("[sandbox] Staged %d bytes → %s (use /commit to apply, /diff to review)", len(content), args.Path)), nil
 	}
 
 	// 通常モード: 直接書き込み
@@ -135,7 +150,7 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 
 	// Write to temp file first (atomic write)
 	tmpFile := resolvedPath + ".tmp"
-	if err := os.WriteFile(tmpFile, []byte(args.Content), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
 		return NewErrorResult(err), nil
 	}
 
@@ -150,10 +165,10 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 	t.addToUndoStack(UndoEntry{
 		Path:      resolvedPath,
 		OldContent: oldContent,
-		NewContent: args.Content,
+		NewContent: content,
 	})
 
-	return NewResult(fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), args.Path)), nil
+	return NewResult(fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), args.Path)), nil
 }
 
 // isProtectedPath checks if path is protected

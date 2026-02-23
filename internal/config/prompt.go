@@ -87,7 +87,8 @@ func BuildSystemPrompt(cfg *Config) string {
 	// Python / venv instructions
 	prompt.WriteString("## Python環境管理\n\n")
 	prompt.WriteString("Pythonスクリプトを作成・実行する際は、必ず仮想環境を使用してください。\n")
-	prompt.WriteString("auto-venvモードが有効な場合、bashでpythonコマンドを実行すると自動的にvenvが作成・activateされます。\n")
+	prompt.WriteString("auto-venvモードが有効な場合、bashでpython3コマンドを実行すると自動的にvenvが作成・activateされます。\n")
+	prompt.WriteString("macOSではpythonコマンドはpython3に自動的に置換されます。\n")
 	prompt.WriteString("手動で行う場合の手順:\n\n")
 	prompt.WriteString("```bash\n")
 	prompt.WriteString("# 仮想環境を作成（uvがあればuv、なければpython3 -m venv）\n")
@@ -97,7 +98,7 @@ func BuildSystemPrompt(cfg *Config) string {
 	prompt.WriteString("# パッケージのインストール\n")
 	prompt.WriteString("pip install <package>\n\n")
 	prompt.WriteString("# スクリプトの実行\n")
-	prompt.WriteString("python script.py\n")
+	prompt.WriteString("python3 script.py\n")
 	prompt.WriteString("```\n\n")
 	prompt.WriteString("### 重要なルール\n")
 	prompt.WriteString("- グローバル環境に直接 pip install しないでください\n")

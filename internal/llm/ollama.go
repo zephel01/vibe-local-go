@@ -37,6 +37,66 @@ func NewOllamaProvider(host, model string) *OllamaProvider {
 	}
 }
 
+// FetchLocalProviderModels ローカルプロバイダーからモデルリストを取得
+func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
+	var url string
+	switch providerKey {
+	case "ollama":
+		url = host + "/api/tags"
+	case "lm-studio", "llama-server":
+		url = host + "/v1/models"
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", providerKey)
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("provider returned status %d", resp.StatusCode)
+	}
+
+	if providerKey == "ollama" {
+		var result struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+		models := make([]string, len(result.Models))
+		for i, model := range result.Models {
+			models[i] = model.Name
+		}
+		return models, nil
+	} else {
+		// OpenAI互換形式
+		var result struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+		models := make([]string, len(result.Data))
+		for i, model := range result.Data {
+			models[i] = model.ID
+		}
+		return models, nil
+	}
+}
+
 // CheckHealth Ollama固有の生存確認（/api/tags を使用）
 func (o *OllamaProvider) CheckHealth(ctx context.Context) error {
 	url := o.ollamaURL + "/api/tags"

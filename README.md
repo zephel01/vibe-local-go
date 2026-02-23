@@ -10,21 +10,27 @@ vibe-local-goはGo言語で書かれた、オフラインで動作するAIコー
 
 ### 特徴
 
-- **完全ローカル動作**: ネットワーク不要、外部API不要
-- **単一バイナリ**: Goコンパイルによる静的バイナリ、依存関係ゼロ
+- **マルチプロバイダー対応**: Ollama（ローカル）+ 14個のクラウドLLM（OpenAI, Anthropic, Google, DeepSeek, Mistral, Groq, OpenRouter等）
+- **ワンバイナリ**: Goコンパイルによる静的バイナリ、依存関係ゼロ
 - **高速起動**: Go言語による最適化、~50msで起動
 - **6つの内蔵ツール**: Bash, Read, Write, Edit, Glob, Grep
+- **プロバイダー管理**: 登録済みプロバイダーの切替・追加・編集・削除
 - **セッション管理**: JSONLによる永続化、セッション復旧機能
 - **自動モデル選択**: RAM容量に応じて最適なモデルを推奨
+- **柔軟な認証**: APIキー + 環境変数対応、再設定フロー搭載
 - **セキュリティ**: パーミッション管理、パス検証、環境変数サニタイズ
 
 ## インストール
 
 ### 前提条件
 
-- **Ollama**: ローカルLLMランタイム
-  - [Ollama公式サイト](https://ollama.com/) からインストール
-  - サポート: macOS, Linux, Windows (WSL2)
+- **ローカルLLM** (以下いずれか):
+  - **Ollama**: [Ollama公式サイト](https://ollama.com/) からインストール
+  - **LM Studio**: [LM Studio](https://lmstudio.ai/) （デフォルト: http://localhost:1234/v1）
+  - **Llama.app**: [Llama](https://github.com/janhq/jan) / Llama-server （デフォルト: http://localhost:8080/v1）
+- または
+- **クラウドLLMのAPIキー**:
+  - OpenAI, Anthropic, Google Gemini, DeepSeek, Mistral, Groq, OpenRouter, Z.AI, など計14社対応
 
 ### バイナリをダウンロード
 
@@ -56,7 +62,9 @@ go build -o vibe-local-go ./cmd/vibe
 
 ## クイックスタート
 
-### 1. Ollamaを起動
+### オプション A: ローカルLLM (Ollama)
+
+#### 1. Ollamaを起動
 
 ```bash
 # macOS
@@ -66,7 +74,7 @@ open -a Ollama
 ollama serve
 ```
 
-### 2. モデルをダウンロード（初回のみ）
+#### 2. モデルをダウンロード
 
 ```bash
 # 推奨モデル（16GB RAMの場合）
@@ -74,22 +82,55 @@ ollama pull qwen3:8b
 
 # 32GB以上RAMの場合
 ollama pull qwen3-coder:30b
-
-# モデルが見つからない場合は検索してみてください
-ollama search qwen3
 ```
 
-> **注意**: Ollamaのモデル名は `モデル名:サイズ` の形式です（例: `qwen3:8b`）。
-> Hugging Faceの名前（`qwen2.5-32b-instruct` 等）とは異なります。
-> 利用可能なモデルは `ollama search <名前>` で検索できます。
-
-### 3. vibe-local-goを起動
+#### 3. vibe-local-goを起動
 
 ```bash
 vibe-local-go
 ```
 
-### 4. 対話モードで使う
+### オプション B: クラウドLLM (OpenAI, Google Gemini, など)
+
+#### 1. APIキーを環境変数に設定
+
+```bash
+# OpenAI
+export OPENAI_API_KEY="sk-..."
+
+# Google Gemini
+export GEMINI_API_KEY="AIzaSy..."
+
+# Z.AI / Zhipu
+export ZAI_API_KEY="your-key"
+
+# その他対応プロバイダー
+# ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY等
+```
+
+#### 2. vibe-local-goを起動
+
+```bash
+vibe-local-go
+```
+
+自動検出されるか、プロバイダー管理メニューで選択してください。
+
+### オプション C: 複数プロバイダーを登録
+
+```bash
+vibe-local-go
+```
+
+起動後、対話モードで以下を実行:
+
+```
+/provider
+```
+
+メニューから「A. プロバイダーを追加」を選択してクラウドLLMを追加できます。
+
+### 対話モードで使う
 
 ```
 > PythonでHello Worldを書いて
@@ -132,8 +173,10 @@ vibe-local-go --list-sessions
 
 | オプション | 短縮 | 説明 |
 |-----------|--------|------|
-| `--model <name>` | `-m` | 使用するLLMモデル名（指定しない場合は自動選択） |
-| `--host <url>` | | OllamaのAPIエンドポイントURL（デフォルト: http://localhost:11434） |
+| `--provider <name>` | | LLMプロバイダー名（ollama, openai, anthropic, google, zai, zhipu 等） |
+| `--api-key <key>` | | クラウドプロバイダーのAPIキー |
+| `--model <name>` | `-m` | 使用するLLMモデル名 |
+| `--host <url>` | | ローカルプロバイダーのAPIエンドポイントURL（デフォルト: http://localhost:11434） |
 | `-p <prompt>` | | ワンショットモード（プロンプトを指定して実行） |
 | `-y` | | 全ツール実行を自動許可（上級者向け、自己責任） |
 | `--resume <id>` | | セッションを復旧（`last` またはセッションID） |
@@ -147,8 +190,17 @@ vibe-local-go --list-sessions
 ### 例
 
 ```bash
-# モデルを指定（Ollamaのモデル名を使用）
-vibe-local-go --model qwen3:8b
+# ローカルLLM（Ollama）
+vibe-local-go --provider ollama --model qwen3:8b
+
+# クラウドLLM（OpenAI）
+vibe-local-go --provider openai --api-key sk-... --model gpt-4.1
+
+# クラウドLLM（Google Gemini）
+vibe-local-go --provider google --api-key AIzaSy... --model gemini-2.5-flash
+
+# クラウドLLM（Z.AI 国際版）
+vibe-local-go --provider zai --api-key your-key --model glm-4.7
 
 # ワンショット
 vibe-local-go -p "現在のディレクトリのファイルを一覧にして"
@@ -176,8 +228,46 @@ vibe-local-go --max-tokens 4096 --temperature 0.5
 | `/save` | 現在のセッションを保存 |
 | `/tokens` | 詳細なトークン使用量を表示 |
 | `/config` | 現在の設定を表示 |
+| `/config save` | 現在の設定をconfig.jsonに保存 |
+| `/provider` | **プロバイダー管理メニュー**（一覧・切替・追加・編集・削除） |
+| `/provider add` | 新しいプロバイダーを追加 |
+| `/provider <name>` | 指定プロバイダーに切替（例: `/provider openai`) |
+| `/provider edit` | 登録済みプロバイダーを編集（APIキー・モデル等） |
+| `/provider delete` | 登録済みプロバイダーを削除 |
+| `/models` | 利用可能なモデル一覧を表示（ローカルプロバイダーのみ） |
+| `/sandbox [on\|off]` | サンドボックスモードの切替 |
 
-## 推奨モデル
+## サポートプロバイダー一覧
+
+### ローカルLLM
+
+| プロバイダー | デフォルトホスト | 対応モデル形式 |
+|------------|-----------------|-------------|
+| **Ollama** | http://localhost:11434 | `model:size` (e.g., qwen3:8b) |
+| **LM Studio** | http://localhost:1234/v1 | OpenAI互換モデル |
+| **Llama.app** / **Llama-server** | http://localhost:8080/v1 | OpenAI互換モデル |
+
+### クラウドLLM（APIキー必須）
+
+| プロバイダー | 環境変数 | 主要モデル |
+|-----------|---------|---------|
+| **OpenRouter** | `OPENROUTER_API_KEY` | gemini-2.5-flash, claude-sonnet-4 |
+| **OpenAI** | `OPENAI_API_KEY` | gpt-4.1, gpt-4.1-mini, o3 |
+| **Anthropic** | `ANTHROPIC_API_KEY` | claude-sonnet-4, claude-opus-4 |
+| **Google Gemini** | `GEMINI_API_KEY` | gemini-2.5-flash, gemini-2.5-pro |
+| **DeepSeek** | `DEEPSEEK_API_KEY` | deepseek-chat, deepseek-reasoner |
+| **Mistral** | `MISTRAL_API_KEY` | mistral-large-latest, codestral-latest |
+| **Groq** | `GROQ_API_KEY` | llama-3.3-70b-versatile |
+| **Together AI** | `TOGETHER_API_KEY` | Llama-3.3-70B, Qwen2.5-72B |
+| **Fireworks AI** | `FIREWORKS_API_KEY` | llama-v3p3-70b-instruct |
+| **Perplexity** | `PERPLEXITY_API_KEY` | sonar-pro (検索特化) |
+| **Cohere** | `COHERE_API_KEY` | command-a-03-2025 (RAG特化) |
+| **Z.AI（国際版）** | `ZAI_API_KEY` | glm-4.7 (Zhipu AIの国際サービス) |
+| **Z.AI Coding Plan** | `ZAI_API_KEY` | glm-4.7 (Coding専用エンドポイント) |
+| **智谱AI（中国版）** | `ZHIPU_API_KEY` | glm-4.7 (Zhipu AI本体) |
+| **Moonshot（Kimi）** | `MOONSHOT_API_KEY` | kimi-k2-instruct, kimi-k2.5 |
+
+## ローカルLLMの推奨モデル
 
 システムRAM容量に基づいて、以下のモデルが推奨されます：
 
@@ -190,7 +280,7 @@ vibe-local-go --max-tokens 4096 --temperature 0.5
 | 8GB+ | qwen3:4b | 軽量、非常に高速 |
 | 4GB+ | qwen3:1.7b | 最小限、瞬時に実行 |
 
-**注**: `--model` オプションで任意のモデルを指定できます。利用可能なモデルは `ollama search <名前>` で検索できます。
+**注**: `--model` オプションで任意のモデルを指定できます。利用可能なモデルは `/models` コマンドまたは `ollama search <名前>` で検索できます。
 
 ## 内蔵ツール
 
@@ -213,25 +303,45 @@ vibe-local-go --max-tokens 4096 --temperature 0.5
 ## アーキテクチャ
 
 ```
-┌─────────────────────────────────────────────┐
-│  CLI Entry Point (cmd/vibe/main.go)      │
-└─────────────────┬───────────────────────┘
-                  │
-    ┌─────────────┼─────────────┬─────────────┐
-    │             │             │             │
-    ▼             ▼             ▼             ▼
-┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────┐
-│  Agent  │ │  Config │ │ Security │ │ Session  │
-└────┬────┘ └─────────┘ └──────────┘ └────┬─────┘
-     │                                       │
-     ├─────────────┬─────────────────────────┘
-     │             │
-     ▼             ▼
-┌─────────┐ ┌─────────────┐
-│   LLM   │ │    Tool     │
-│ (Ollama)│ │  (6 tools)  │
-└─────────┘ └─────────────┘
+┌──────────────────────────────────────────────┐
+│  CLI Entry Point (cmd/vibe/main.go)       │
+└──────────────────┬─────────────────────────┘
+                   │
+    ┌──────────────┼──────────────┬──────────────┐
+    │              │              │              │
+    ▼              ▼              ▼              ▼
+┌────────┐ ┌────────────┐ ┌──────────┐ ┌──────────┐
+│ Agent  │ │   Config   │ │ Security │ │ Session  │
+└───┬────┘ └──────┬─────┘ └──────────┘ └────┬─────┘
+    │             │                          │
+    │      ┌──────────────────────────────────┘
+    │      │
+    ▼      ▼
+┌──────────────────────────┐
+│  Provider Abstraction    │
+├──────────────────────────┤
+│ ├─ LLMProvider (interface)
+│ ├─ CloudProvider (OpenAI-compat)
+│ ├─ OllamaProvider
+│ ├─ OpenRouterProvider
+│ └─ LocalProviders (LM Studio, Llama.app)
+└───┬──────────────────────┘
+    │
+    ├────────────┬────────────┬─────────────┐
+    │            │            │             │
+    ▼            ▼            ▼             ▼
+┌──────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐
+│Local │ │ Cloud 14 │ │   Tool   │ │  Command    │
+│ LLMs │ │ Providers│ │(6 tools) │ │  Handler    │
+└──────┘ └──────────┘ └──────────┘ └─────────────┘
 ```
+
+**ポイント**:
+- **LLMProvider**: すべてのLLMバックエンドの共通インターフェース
+- **OpenAICompatProvider**: OpenAI形式のAPIを実装するプロバイダーの基盤
+- **CloudProvider Factory**: APIキー + モデル名からプロバイダーを動的作成
+- **LocalProvider Manager**: Ollama/LM Studio/Llama.appの複数ローカルプロバイダーに対応
+- **Config System**: マルチプロバイダーをJSONで永続化
 
 ### ディレクトリ構造
 
@@ -254,26 +364,56 @@ vibe-local-go/
 ### 設定ファイル
 
 ```bash
-~/.config/vibe-local/config
+~/.config/vibe-local-go/config.json
 ```
 
-### 設定項目
+### 設定形式（JSON）
 
-```bash
-# モデル設定
-MODEL=""                      # 空で自動選択
-OLLAMA_HOST="http://localhost:11434"
-
-# LLM設定
-MAX_TOKENS=8192
-TEMPERATURE=0.7
-CONTEXT_WINDOW=32768
+```json
+{
+    "PROVIDER": "zai",
+    "MODEL": "glm-4.7",
+    "MAX_TOKENS": 8192,
+    "TEMPERATURE": 0.7,
+    "CONTEXT_WINDOW": 32768,
+    "PROVIDERS": {
+        "ollama": {
+            "type": "ollama",
+            "host": "http://localhost:11434",
+            "model": "qwen3:8b"
+        },
+        "zai": {
+            "type": "zai",
+            "api_key": "your-key",
+            "model": "glm-4.7"
+        },
+        "openai": {
+            "type": "openai",
+            "api_key": "sk-...",
+            "model": "gpt-4.1"
+        }
+    }
+}
 ```
 
-### 環境変数
+### 環境変数（プロバイダーのAPIキー）
 
 | 変数 | 説明 |
 |------|------|
+| `OPENROUTER_API_KEY` | OpenRouter APIキー |
+| `OPENAI_API_KEY` | OpenAI APIキー |
+| `ANTHROPIC_API_KEY` | Anthropic APIキー |
+| `GEMINI_API_KEY` | Google Gemini APIキー |
+| `DEEPSEEK_API_KEY` | DeepSeek APIキー |
+| `MISTRAL_API_KEY` | Mistral APIキー |
+| `GROQ_API_KEY` | Groq APIキー |
+| `TOGETHER_API_KEY` | Together AI APIキー |
+| `FIREWORKS_API_KEY` | Fireworks AI APIキー |
+| `PERPLEXITY_API_KEY` | Perplexity APIキー |
+| `COHERE_API_KEY` | Cohere APIキー |
+| `ZAI_API_KEY` | Z.AI / Z.AI Coding Plan APIキー |
+| `ZHIPU_API_KEY` | 智谱AI (中国版) APIキー |
+| `MOONSHOT_API_KEY` | Moonshot (Kimi) APIキー |
 | `OLLAMA_HOST` | Ollama APIエンドポイントURL |
 | `VIBE_LOCAL_DEBUG` | `1` でデバッグログ有効化 |
 
@@ -351,27 +491,69 @@ go vet ./...
 
 ## トラブルシューティング
 
-### "Ollama接続エラー"
+### "接続エラー（ローカルLLM）"
 
-```bash
-# Ollamaが起動しているか確認
-ollama ps
+**症状**: `接続エラー: health check failed with status...`
 
-# 再起動
-ollama serve
-```
+**対策**:
+
+1. **Ollamaが起動しているか確認**
+   ```bash
+   ollama ps
+   ```
+
+2. **Ollamaを起動**
+   ```bash
+   # macOS
+   open -a Ollama
+
+   # Linux / Windows
+   ollama serve
+   ```
+
+3. **リトライ/再設定メニュー**
+   - エラー表示後、`1. リトライ` を選択
+   - `2. プロバイダーを再設定` で別のプロバイダーに切替
+   - `3. 終了` で終了
+
+### "接続エラー（クラウドLLM）"
+
+**症状**: `接続エラー: health check failed with status 401`
+
+**対策**:
+
+1. **APIキーが正しいか確認**
+   ```bash
+   # 環境変数に設定済みか確認
+   echo $OPENAI_API_KEY
+   ```
+
+2. **APIキーを更新**
+   ```bash
+   /provider edit
+   ```
+   メニューから編集対象を選択してAPIキーを変更
+
+3. **新規プロバイダーを追加**
+   ```bash
+   /provider add
+   ```
 
 ### "モデルが見つかりません"
 
+**症状**: `モデル 'xxx' が見つかりません`
+
+**対策**:
+
 ```bash
-# モデルを検索（正しい名前を確認）
-ollama search qwen3
+# ローカル（Ollama）
+/models              # 利用可能なモデル一覧
+ollama pull qwen3:8b # モデルをダウンロード
+ollama search qwen3  # モデルを検索
 
-# モデルをダウンロード（Ollamaの名前形式: モデル名:サイズ）
-ollama pull qwen3:8b
-
-# モデル名がわからない場合
-ollama search <キーワード>
+# クラウド
+/provider            # プロバイダー管理で正しいプロバイダーを選択
+/config              # 現在の設定を確認
 ```
 
 ### "コマンドが見つかりません"
@@ -385,13 +567,47 @@ curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-
 chmod +x /usr/local/bin/vibe-local-go
 ```
 
-## 制限事項
+### "APIキーが保存されない"
 
-- 現在実装されているのは6つのツールのみ
-- 画像/PDF読み取りのサポートは開発中
-- Web検索/WebFetchツールは未実装
-- サブエージェント機能は未実装
-- メモリ検出は簡易実装（デフォルト値を使用）
+**原因**: config.jsonが未作成の状態
+
+**対策**:
+
+```bash
+# 現在の設定をconfig.jsonに保存
+/config save
+```
+
+これで `~/.config/vibe-local-go/config.json` に設定が永続化されます。
+
+## 機能一覧
+
+### 実装済み
+
+✅ マルチプロバイダー対応（ローカル + クラウド14社）
+✅ プロバイダー管理（追加・切替・編集・削除）
+✅ 6つの内蔵ツール（Bash, Read, Write, Edit, Glob, Grep）
+✅ セッション管理と永続化
+✅ 環境変数ベースのAPIキー設定
+✅ config.json による設定永続化
+✅ ローカルモデルの自動検出（Ollama, LM Studio, Llama.app）
+✅ クラウドプロバイダーの自動検出
+✅ 接続エラー時のリトライ/再設定フロー
+✅ マルチホスト対応（Ollama, LM Studio, Llama.app）
+✅ プロバイダー編集（APIキー・モデル変更）
+
+### 開発中
+
+🔄 Anthropic Messages API 専用実装
+🔄 Google ADC (Application Default Credentials) 対応
+🔄 プロキシ設定の自動化
+
+### 未実装
+
+❌ 画像/PDF読み取りのサポート
+❌ Web検索/WebFetchツール
+❌ サブエージェント機能
+❌ ファイルアップロード機能
 
 ## 依存関係
 

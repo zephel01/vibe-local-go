@@ -122,8 +122,11 @@ func (t *BashTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 		return t.executeInBackground(args.Command, timeout)
 	}
 
+	// python を python3 に置換（macOS互換性）
+	command := replacePythonWithPython3(args.Command)
+
 	// Python自動venv: コマンドがPython関連なら.venvのactivateを前置
-	command := t.wrapWithVenvIfNeeded(args.Command)
+	command = t.wrapWithVenvIfNeeded(command)
 
 	// Execute command synchronously
 	return t.executeSync(ctx, command, timeout)
@@ -263,6 +266,46 @@ func isPythonCommand(command string) bool {
 	}
 
 	return false
+}
+
+// replacePythonWithPython3 はコマンド内の python を python3 に置換する
+// 引用符内の文字列やパス名は置換しないように注意が必要
+func replacePythonWithPython3(command string) string {
+	// すでに python3 を含む場合は置換不要
+	if strings.Contains(command, "python3") {
+		return command
+	}
+
+	// 簡単な置換: コマンドの先頭やトークンの先頭にある python を置換
+	// 正確なパースは複雑になるため、基本的なパターンで対応
+
+	// パターン: "python " -> "python3 "
+	result := strings.ReplaceAll(command, "python ", "python3 ")
+	// パターン: "python\n" -> "python3\n"
+	result = strings.ReplaceAll(result, "python\n", "python3\n")
+	// パターン: "python\t" -> "python3\t"
+	result = strings.ReplaceAll(result, "python\t", "python3\t")
+
+	// パターン: "python|" -> "python3|"
+	result = strings.ReplaceAll(result, "python|", "python3|")
+	// パターン: "python;" -> "python3;"
+	result = strings.ReplaceAll(result, "python;", "python3;")
+	// パターン: "python&" -> "python3&"
+	result = strings.ReplaceAll(result, "python&", "python3&")
+	// パターン: "(python)" -> "(python3)"
+	result = strings.ReplaceAll(result, "(python)", "(python3)")
+
+	// パターン: "| python" -> "| python3"
+	result = strings.ReplaceAll(result, "| python", "| python3")
+	// パターン: "&& python" -> "&& python3"
+	result = strings.ReplaceAll(result, "&& python", "&& python3")
+	// パターン: "; python" -> "; python3"
+	result = strings.ReplaceAll(result, "; python", "; python3")
+
+	// パターン: "python." で終わる場合は置換しない（パス名の可能性）
+	// 例: mypython.exe
+
+	return result
 }
 
 // truncateOutput truncates output to maximum length
