@@ -88,7 +88,7 @@ chmod +x ~/.local/bin/vibe
 
 ### 方法 3: ソースからビルド
 
-**要件**: Go 1.21+
+**要件**: Go 1.26+
 
 ```bash
 git clone https://github.com/zephel01/vibe-local-go.git
@@ -635,11 +635,15 @@ ollama search qwen3  # モデルを検索
 
 ```bash
 # バイナリがPATHにあるか確認
-which vibe-local-go
+which vibe
 
-# 再インストール（macOS Apple Siliconの場合）
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-local-go-darwin-arm64 -o /usr/local/bin/vibe-local-go
-chmod +x /usr/local/bin/vibe-local-go
+# インストールスクリプトで再インストール（推奨）
+curl -fsSL https://raw.githubusercontent.com/zephel01/vibe-local-go/main/scripts/install-go.sh | bash
+
+# 手動再インストール（macOS Apple Siliconの場合）
+curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-arm64.tar.gz | tar xz
+mv vibe ~/.local/bin/
+chmod +x ~/.local/bin/vibe
 ```
 
 ### "APIキーが保存されない"
@@ -662,6 +666,7 @@ chmod +x /usr/local/bin/vibe-local-go
 - ✅ マルチプロバイダー対応（ローカル + クラウド14社）
 - ✅ プロバイダー管理（追加・切替・編集・削除）
 - ✅ 6つの内蔵ツール（Bash, Read, Write, Edit, Glob, Grep）
+- ✅ WebFetch / WebSearch ツール（DuckDuckGo検索、SSRF防御付き）
 - ✅ セッション管理と永続化
 - ✅ 環境変数ベースのAPIキー設定
 - ✅ config.json による設定永続化
@@ -672,25 +677,39 @@ chmod +x /usr/local/bin/vibe-local-go
 - ✅ プロバイダー編集（APIキー・モデル変更）
 - ✅ モデル存在チェック＋自動ダウンロード提案（セットアップ・編集・起動時）
 - ✅ ダウンロード進捗表示（プログレスバー付き ollama pull）
+- ✅ Agent Skills（グローバル/プロジェクトスキル管理、`/skills` コマンド）
+- ✅ MCP Client（Model Context Protocol、外部ツールサーバー連携、`/mcp` コマンド）
+- ✅ Plan/Act モード（`/plan [on|off]`、書き込み禁止による安全な計画フェーズ）
+- ✅ Git Checkpoint（`/checkpoint`、git stash ベースの作業復元）
+- ✅ Auto Test（ファイル変更後の自動テスト実行、`/autotest [on|off]`）
+- ✅ ESC 割り込み（エージェント実行の中断）
+- ✅ ステータス行（経過時間・トークン数のリアルタイム表示）
+- ✅ クロスプラットフォームビルド（Makefile + GitHub Actions、6プラットフォーム対応）
+- ✅ ワンコマンドインストール（`install-go.sh`）
 
 ### 開発中
 
-- 🔄 Anthropic Messages API 専用実装
-- 🔄 Google ADC (Application Default Credentials) 対応
-- 🔄 プロキシ設定の自動化
+- 🔄 Anthropic Messages API 専用実装（native messages API 変換）
+- 🔄 ProviderChain フォールバック（プロバイダー障害時の自動切り替え）
+- 🔄 ゼロコンフィグ自動初期化（スマートプロバイダー選択フロー）
 
 ### 未実装
 
-- ❌ 画像/PDF読み取りのサポート
-- ❌ Web検索/WebFetchツール
-- ❌ サブエージェント機能
-- ❌ ファイルアップロード機能
+- ❌ サブエージェント機能（独立ループの並列エージェント）
+- ❌ Jupyter Notebook 編集ツール（NotebookEdit）
+- ❌ タスク管理ツール（TodoWrite / TodoRead）
+- ❌ ユーザー質問ツール（AskUserQuestion）
+- ❌ 多言語対応 UI（ja / en / zh の自動切り替え）
+- ❌ コスト・レート制限（クラウドAPI使用量管理）
+- ❌ セットアップガイド（プロバイダー未検出時の案内）
 
 ## 依存関係
 
 - **Go 1.26+**: ビルドに必要
 
-- **Ollama**: LLMランタイム（必須）
+- **LLM プロバイダー** (以下いずれか):
+  - Ollama / LM Studio / Llama-server（ローカル）
+  - クラウドLLM APIキー（OpenAI, Anthropic, Google など）
 
 - **外部ライブラリ**: なし（Go標準ライブラリのみ）
 
