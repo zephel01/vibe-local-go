@@ -227,9 +227,10 @@ func (p *LMStudioProvider) getLoadedModelKey(ctx context.Context) (string, error
 func (p *LMStudioProvider) loadModel(ctx context.Context, key string) error {
 	url := p.baseHost + "/api/v1/models/load"
 
+	// LM Studio Native REST API: {"identifier": "publisher/model-name"}
+	// config は省略可能（空だと 400 になる場合がある）
 	body := map[string]interface{}{
 		"identifier": key,
-		"config":     map[string]interface{}{},
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
@@ -251,6 +252,24 @@ func (p *LMStudioProvider) loadModel(ctx context.Context, key string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// エラー詳細をレスポンスボディから取得
+		var errBody struct {
+			Error   string `json:"error"`
+			Message string `json:"message"`
+			Detail  string `json:"detail"`
+		}
+		if jsonErr := json.NewDecoder(resp.Body).Decode(&errBody); jsonErr == nil {
+			detail := errBody.Error
+			if errBody.Message != "" {
+				detail = errBody.Message
+			}
+			if errBody.Detail != "" {
+				detail = errBody.Detail
+			}
+			if detail != "" {
+				return fmt.Errorf("POST /api/v1/models/load returned %d: %s", resp.StatusCode, detail)
+			}
+		}
 		return fmt.Errorf("POST /api/v1/models/load returned %d", resp.StatusCode)
 	}
 	return nil
