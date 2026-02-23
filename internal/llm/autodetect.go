@@ -55,7 +55,7 @@ func AutoDetect(ctx context.Context) []DetectedProvider {
 		{
 			name:     "lm-studio",
 			port:     1234,
-			endpoint: "/v1/models",
+			endpoint: "/api/v1/models", // LM Studio Native REST API (0.4.0+)
 			parser:   parseLlamaServerModels,
 		},
 		{
@@ -296,8 +296,11 @@ func (dp *DetectedProvider) IsReachable(ctx context.Context) bool {
 
 	// Determine endpoint based on provider
 	endpoint := "/v1/models"
-	if dp.Name == "ollama" {
+	switch dp.Name {
+	case "ollama":
 		endpoint = "/api/tags"
+	case "lm-studio":
+		endpoint = "/api/v1/models" // LM Studio Native REST API
 	}
 
 	// normalizeBaseURL で /v1 が二重にならないよう正規化
@@ -338,8 +341,8 @@ func DetectProvidersByPort(ctx context.Context, ports []int) []DetectedProvider 
 		parser func([]byte) ([]string, error)
 	}{
 		{"/api/tags", parseOllamaModels},           // Ollama
-		{"/v1/models", parseLlamaServerModels},     // llama-server, LM Studio
-		{"/api/v1/models", parseLlamaServerModels}, // Some variants
+		{"/api/v1/models", parseLlamaServerModels}, // LM Studio Native REST API (0.4.0+)
+		{"/v1/models", parseLlamaServerModels},     // llama-server (OpenAI-compat)
 	}
 
 	// Check each port with each endpoint
@@ -357,6 +360,8 @@ func DetectProvidersByPort(ctx context.Context, ports []int) []DetectedProvider 
 					switch endpoint {
 					case "/api/tags":
 						name = "ollama"
+					case "/api/v1/models":
+						name = "lm-studio"
 					case "/v1/models":
 						if p == 1234 {
 							name = "lm-studio"

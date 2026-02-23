@@ -27,6 +27,11 @@ func normalizeBaseURL(rawURL string) string {
 	return strings.TrimSuffix(u, "/")
 }
 
+// NormalizeBaseURL は normalizeBaseURL の公開版（パッケージ外から利用可能）
+func NormalizeBaseURL(rawURL string) string {
+	return normalizeBaseURL(rawURL)
+}
+
 // NewOllamaProvider 新しいOllamaプロバイダーを作成
 func NewOllamaProvider(host, model string) *OllamaProvider {
 	host = normalizeBaseURL(host)
@@ -55,7 +60,9 @@ func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
 	switch providerKey {
 	case "ollama":
 		url = host + "/api/tags"
-	case "lm-studio", "llama-server":
+	case "lm-studio":
+		url = host + "/api/v1/models" // LM Studio Native REST API
+	case "llama-server":
 		url = host + "/v1/models"
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", providerKey)

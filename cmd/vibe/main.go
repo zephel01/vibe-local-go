@@ -382,18 +382,22 @@ func createProvider(cfg *config.Config) llm.LLMProvider {
 		if cfg.Provider == "ollama" {
 			return llm.NewOllamaProvider(host, cfg.Model)
 		}
-		// lm-studio と llama-server はOpenAI互換API
+		if cfg.Provider == "lm-studio" {
+			return llm.NewLMStudioProvider(host, cfg.Model)
+		}
+		// llama-server はOpenAI互換API（/v1 を付与）
+		normalizedHost := llm.NormalizeBaseURL(host)
 		info := llm.ProviderInfo{
 			Name:    cfg.Provider,
 			Type:    llm.ProviderTypeLocal,
-			BaseURL: host,
+			BaseURL: normalizedHost,
 			Model:   cfg.Model,
 			Features: llm.Features{
 				NativeFunctionCalling: true,
 				Streaming:             true,
 			},
 		}
-		return llm.NewOpenAICompatProvider(host, "", cfg.Model, info)
+		return llm.NewOpenAICompatProvider(normalizedHost+"/v1", "", cfg.Model, info)
 	default:
 		// デフォルト: Ollama
 		return llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)

@@ -33,19 +33,19 @@ var LocalProviders = []LocalProviderDef{
 	{
 		Name:         "LM Studio",
 		Key:          "lm-studio",
-		DefaultHost:  "http://localhost:1234/v1",
+		DefaultHost:  "http://localhost:1234",
 		DefaultModel: "gemma-3-4b-it",
 	},
 	{
 		Name:         "Llama.app (Llama-server)",
 		Key:          "llama-server",
-		DefaultHost:  "http://localhost:8080/v1",
+		DefaultHost:  "http://localhost:8080",
 		DefaultModel: "llama-3-8b-instruct",
 	},
 	{
 		Name:         "LiteLLM (LAN)",
 		Key:          "litellm",
-		DefaultHost:  "http://192.168.4.85:4000/v1",
+		DefaultHost:  "http://192.168.4.85:4000",
 		DefaultModel: "glm47-flash",
 	},
 }
