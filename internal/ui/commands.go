@@ -172,6 +172,14 @@ func (ch *CommandHandler) ShowHelp() {
 	ch.terminal.Printf("  /tokens         トークン使用量を表示\n")
 	ch.terminal.Print("\n")
 
+	ch.terminal.PrintColored(ColorGreen, "サンドボックス:\n")
+	ch.terminal.Printf("  /sandbox [on|off]  サンドボックスモード切替/表示\n")
+	ch.terminal.Printf("  /commit [file]     ステージされたファイルを本番に反映\n")
+	ch.terminal.Printf("  /discard [file]    ステージされたファイルを破棄\n")
+	ch.terminal.Printf("  /diff [file]       ステージされたファイルの差分を表示\n")
+	ch.terminal.Printf("  /staged            ステージされたファイル一覧\n")
+	ch.terminal.Print("\n")
+
 	ch.terminal.PrintColored(ColorGreen, "設定/デバッグ:\n")
 	ch.terminal.Printf("  /config         設定を表示\n")
 	ch.terminal.Printf("  /debug          デバッグモード切替\n")
@@ -211,11 +219,12 @@ func (ch *CommandHandler) cmdModel(args string) error {
 
 func (ch *CommandHandler) cmdModels(args string) error {
 	ch.terminal.Println("利用可能なモデル:")
-	ch.terminal.Printf("  - qwen2.5-72b-instruct (Tier A, 256GB+)\n")
-	ch.terminal.Printf("  - llama3.1-70b-instruct (Tier B, 96GB+)\n")
-	ch.terminal.Printf("  - llama3.1-8b-instruct (Tier C, 16GB+)\n")
-	ch.terminal.Printf("  - llama3.2-3b-instruct (Tier D, 8GB+)\n")
-	ch.terminal.Printf("  - qwen2.5-1.5b-instruct (Tier E, 4GB+)\n")
+	ch.terminal.Printf("  - qwen3:72b (Tier A, 256GB+)\n")
+	ch.terminal.Printf("  - qwen3:32b (Tier B, 96GB+)\n")
+	ch.terminal.Printf("  - qwen3-coder:30b (Tier C, 32GB+)\n")
+	ch.terminal.Printf("  - qwen3:8b (Tier C, 16GB+)\n")
+	ch.terminal.Printf("  - qwen3:4b (Tier D, 8GB+)\n")
+	ch.terminal.Printf("  - qwen3:1.7b (Tier E, 4GB+)\n")
 	return nil
 }
 

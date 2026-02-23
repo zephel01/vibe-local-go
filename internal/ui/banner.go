@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
@@ -10,52 +11,114 @@ import (
 
 // BannerOptions バナー表示オプション
 type BannerOptions struct {
-	Version      string
-	ModelName    string
+	Version       string
+	ModelName     string
+	ModelTier     string
 	ContextWindow int
-	MaxTokens    int
-	MemoryGB     float64
+	MaxTokens     int
+	MemoryGB      float64
+	AutoApprove   bool
+	OllamaHost    string
+	CWD           string
 }
 
-// ShowBanner 起動時バナーを表示
+// ShowBanner 起動時バナーを表示（Python版準拠）
 func (t *Terminal) ShowBanner(opts BannerOptions) {
-	// バナー区切り線
-	separator := strings.Repeat("─", 60)
+	// ASCII art ロゴ
+	t.PrintColored(ColorCyan, `  ██╗   ██╗██╗██████╗ ███████╗     ██╗      ██████╗  ██████╗ █████╗ ██╗
+  ██║   ██║██║██╔══██╗██╔════╝     ██║     ██╔═══██╗██╔════╝██╔══██╗██║
+  ██║   ██║██║██████╔╝█████╗  ████ ██║     ██║   ██║██║     ███████║██║
+  ╚██╗ ██╔╝██║██╔══██╗██╔══╝       ██║     ██║   ██║██║     ██╔══██╗██║
+   ╚████╔╝ ██║██████╔╝███████╗     ███████╗╚██████╔╝╚██████╗██║  ██║███████╗
+    ╚═══╝  ╚═╝╚═════╝ ╚══════╝     ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
+`)
+	t.PrintColored(ColorGreen, "  🌴 O F F L I N E  A I  C O D I N G  A G E N T 🌴\n")
+	t.PrintColored(ColorGray, fmt.Sprintf("  v%s  // No login • No cloud • Fully OSS • Powered by Ollama\n", opts.Version))
 
-	t.Println(separator)
-
-	// タイトル
-	titleColor := ColorCyan
-	t.PrintColored(titleColor, "  vibe-local-go")
-	t.Printf(" - Go版 AIコーディングアシスタント v%s\n", opts.Version)
+	// ステータス区切り線
+	t.PrintColored(ColorGray, "  "+strings.Repeat("─", 48)+"\n")
 
 	// モデル情報
-	if opts.ModelName != "" {
-		t.PrintColored(ColorGreen, "  モデル: ")
-		t.Printf("%s", opts.ModelName)
-		if opts.ContextWindow > 0 {
-			t.Printf(" (コンテキスト: %d トークン)", opts.ContextWindow)
-		}
-		t.Print("\n")
+	tierStr := ""
+	if opts.ModelTier != "" && opts.ModelTier != "Unknown" {
+		tierStr = fmt.Sprintf(" [Tier %s]", opts.ModelTier)
+	}
+	t.PrintColored(ColorCyan, "  🧠 Model  ")
+	t.Printf("%s%s\n", opts.ModelName, tierStr)
+
+	// モード
+	modeStr := "✗ CONFIRM"
+	if opts.AutoApprove {
+		modeStr = "✓ AUTO-APPROVE"
+	}
+	t.PrintColored(ColorCyan, "  🔒 Mode   ")
+	t.Printf("%s\n", modeStr)
+
+	// エンジン
+	ollamaHost := opts.OllamaHost
+	if ollamaHost == "" {
+		ollamaHost = "http://localhost:11434"
+	}
+	t.PrintColored(ColorCyan, "  🦙 Engine ")
+	t.Printf("Ollama (%s)\n", ollamaHost)
+
+	// RAM
+	ctxTokens := opts.ContextWindow
+	if ctxTokens == 0 {
+		ctxTokens = 8192
+	}
+	t.PrintColored(ColorCyan, "  💾 RAM    ")
+	t.Printf("%.0fGB (ctx: %d tokens)\n", opts.MemoryGB, ctxTokens)
+
+	// CWD
+	cwd := opts.CWD
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	t.PrintColored(ColorCyan, "  📁 CWD    ")
+	t.Printf("%s\n", cwd)
+
+	// 区切り線
+	t.PrintColored(ColorGray, "  "+strings.Repeat("─", 48)+"\n")
+}
+
+// ShowPermissionCheck パーミッション確認ダイアログを表示
+func (t *Terminal) ShowPermissionCheck() (bool, error) {
+	t.Println("")
+	t.PrintColored(ColorYellow, strings.Repeat("═", 44)+"\n")
+	t.PrintColored(ColorYellow, " ⚠️  パーミッション確認 / Permission Check\n")
+	t.PrintColored(ColorYellow, strings.Repeat("═", 44)+"\n")
+	t.Println(" vibe-local はツール自動許可モード (-y) で起動できます。")
+	t.Println(" This means the AI can execute commands, read/write")
+	t.Println(" files, and modify your system WITHOUT asking.")
+	t.Println(" ローカルLLMはクラウドAIより精度が低いため、")
+	t.Println(" 意図しない操作が実行される可能性があります。")
+	t.PrintColored(ColorGray, strings.Repeat("-", 44)+"\n")
+	t.Println(" [y] 自動許可モード (Auto-approve all tools)")
+	t.Println(" [N] 通常モード (Ask before each tool use)")
+	t.PrintColored(ColorGray, strings.Repeat("-", 44)+"\n")
+
+	input, err := t.ReadLine(" 続行しますか？ / Continue? [y/N]: ")
+	if err != nil {
+		return false, err
 	}
 
-	// メモリ情報
-	if opts.MemoryGB > 0 {
-		t.PrintColored(ColorGreen, "  メモリ: ")
-		t.Printf("%.1f GB", opts.MemoryGB)
-		t.Printf(" (OS: %s/%s)", runtime.GOOS, runtime.GOARCH)
-		t.Print("\n")
+	input = strings.TrimSpace(strings.ToLower(input))
+	if input == "y" || input == "yes" {
+		t.PrintColored(ColorGreen, " → 自動許可モードで起動します\n")
+		return true, nil
 	}
 
-	// 推奨モデル
-	if opts.MemoryGB > 0 {
-		recommended := config.RecommendModel(opts.MemoryGB)
-		t.PrintColored(ColorYellow, "  推奨: ")
-		t.Printf("%s\n", recommended)
-	}
+	t.PrintColored(ColorCyan, " → 通常モードで起動します\n")
+	return false, nil
+}
 
-	t.Println(separator)
-	t.Print("\n")
+// ShowWelcome ウェルカムメッセージ＋ヘルプヒントを表示
+func (t *Terminal) ShowWelcome(version string) {
+	t.PrintColored(ColorGray, "  /help commands • Ctrl+C to interrupt (press twice to quit) • \"\"\" for multiline\n")
+	t.PrintColored(ColorGreen, "  First time? Try typing: \"create a hello world in Python\"\n")
+	t.PrintColored(ColorGray, "  Type /help for commands, or just ask anything in natural language.\n")
+	t.Println("")
 }
 
 // ShowModelInfo モデル情報を表示
@@ -81,30 +144,6 @@ func (t *Terminal) ShowVersion(version string) {
 	fmt.Printf("Go %s (%s/%s)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 }
 
-// ShowWelcome ウェルカムメッセージを表示
-func (t *Terminal) ShowWelcome(version string) {
-	t.PrintColored(ColorCyan, "╔════════════════════════════════════════════════════════════╗\n")
-	t.PrintColored(ColorCyan, "║                                                                ║\n")
-	t.PrintColored(ColorCyan, "║  ")
-	t.PrintColored(ColorGreen, "★")
-	t.PrintColored(ColorCyan, "  vibe-local-go ")
-	t.PrintColored(ColorYellow, fmt.Sprintf("v%s", version))
-	t.PrintColored(ColorCyan, "  ")
-	t.PrintColored(ColorGreen, "★")
-	t.PrintColored(ColorCyan, "                              ║\n")
-	t.PrintColored(ColorCyan, "║                                                                ║\n")
-	t.PrintColored(ColorCyan, "║  Go版 AIコーディングアシスタント                           ║\n")
-	t.PrintColored(ColorCyan, "║                                                                ║\n")
-	t.PrintColored(ColorCyan, "║  ヘルプ: ")
-	t.PrintColored(ColorYellow, "/help")
-	t.PrintColored(ColorCyan, "  終了: ")
-	t.PrintColored(ColorYellow, "/exit")
-	t.PrintColored(ColorCyan, "                                ║\n")
-	t.PrintColored(ColorCyan, "║                                                                ║\n")
-	t.PrintColored(ColorCyan, "╚════════════════════════════════════════════════════════════╝\n")
-	t.Print("\n")
-}
-
 // ShowErrorSummary エラー概要を表示
 func (t *Terminal) ShowErrorSummary(errorCount int, warningCount int) {
 	if errorCount == 0 && warningCount == 0 {
@@ -121,4 +160,27 @@ func (t *Terminal) ShowErrorSummary(errorCount int, warningCount int) {
 		t.PrintColored(ColorYellow, fmt.Sprintf("%d\n", warningCount))
 	}
 	t.Println("═══════════════════\n")
+}
+
+// ShowTokenUsage トークン使用量を表示（Python版準拠）
+// promptTokens: 入力トークン数, completionTokens: 出力トークン数, contextWindow: コンテキストウィンドウサイズ
+func (t *Terminal) ShowTokenUsage(promptTokens, completionTokens, contextWindow int) {
+	if contextWindow == 0 {
+		contextWindow = 8192
+	}
+
+	totalTokens := promptTokens + completionTokens
+	usagePct := float64(totalTokens) / float64(contextWindow) * 100
+
+	t.PrintColored(ColorGray, fmt.Sprintf("  tokens: %d→%d (%d%% ctx)\n", promptTokens, completionTokens, int(usagePct)))
+}
+
+// FormatPrompt コンテキスト使用率付きのプロンプトを生成（Python版準拠）
+func FormatPrompt(contextUsagePct int) string {
+	return fmt.Sprintf("ctx:%d%% ❯ ", contextUsagePct)
+}
+
+// RecommendModel is a convenience wrapper
+func RecommendModel(memoryGB float64) string {
+	return config.RecommendModel(memoryGB)
 }

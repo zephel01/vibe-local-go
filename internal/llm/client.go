@@ -152,20 +152,36 @@ func (c *Client) CheckConnection(ctx context.Context) error {
 
 // CheckModel checks if a specific model is available
 func (c *Client) CheckModel(ctx context.Context, modelName string) (bool, error) {
+	models, err := c.ListModels(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	for _, model := range models {
+		if model == modelName {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// ListModels returns a list of all available models
+func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	url := c.baseURL + "/api/tags"
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false, nil
+		return nil, fmt.Errorf("Ollama returned status %d", resp.StatusCode)
 	}
 
 	var result struct {
@@ -175,16 +191,15 @@ func (c *Client) CheckModel(ctx context.Context, modelName string) (bool, error)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, err
+		return nil, err
 	}
 
-	for _, model := range result.Models {
-		if model.Name == modelName {
-			return true, nil
-		}
+	models := make([]string, len(result.Models))
+	for i, model := range result.Models {
+		models[i] = model.Name
 	}
 
-	return false, nil
+	return models, nil
 }
 
 // PullModel downloads a model from Ollama

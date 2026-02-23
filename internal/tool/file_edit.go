@@ -20,6 +20,7 @@ const (
 // EditTool edits files by replacing strings
 type EditTool struct {
 	writeTool *WriteTool
+	sandbox   SandboxStager
 }
 
 // NewEditTool creates a new edit tool
@@ -27,6 +28,11 @@ func NewEditTool() *EditTool {
 	return &EditTool{
 		writeTool: NewWriteTool(),
 	}
+}
+
+// SetSandbox はサンドボックスマネージャーを設定する
+func (t *EditTool) SetSandbox(sb SandboxStager) {
+	t.sandbox = sb
 }
 
 // Name returns the tool name
@@ -130,7 +136,16 @@ func (t *EditTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 	// Generate diff
 	diff := generateUnifiedDiff(args.Path, oldContent, newContent)
 
-	// Write new content
+	// サンドボックスモードの場合はステージングにリダイレクト
+	if t.sandbox != nil && t.sandbox.IsEnabled() {
+		if err := t.sandbox.Stage(resolvedPath, []byte(newContent)); err != nil {
+			return NewErrorResult(fmt.Errorf("sandbox staging failed: %w", err)), nil
+		}
+		output := fmt.Sprintf("[sandbox] Staged edit → %s (use /commit to apply, /diff to review)\n\nDiff:\n%s", args.Path, diff)
+		return NewResult(output), nil
+	}
+
+	// 通常モード: 直接書き込み
 	tmpFile := resolvedPath + ".tmp"
 	if err := os.WriteFile(tmpFile, []byte(newContent), 0644); err != nil {
 		return NewErrorResult(err), nil

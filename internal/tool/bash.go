@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -31,12 +32,32 @@ const (
 
 // BashTool executes bash commands
 type BashTool struct {
-	baseDir string
+	baseDir    string
+	sandboxDir string // サンドボックスディレクトリのパス（PATH参照用、cmd.Dirには使わない）
+	autoVenv   bool   // Python実行時に自動で.venvをactivateするか
+	venvDir    string // 仮想環境ディレクトリパス（デフォルト: .venv）
 }
 
 // NewBashTool creates a new bash tool
 func NewBashTool() *BashTool {
-	return &BashTool{}
+	return &BashTool{
+		autoVenv: false,
+		venvDir:  ".venv",
+	}
+}
+
+// SetSandboxDir はサンドボックスディレクトリのパスを設定する
+// ※ bashの作業ディレクトリは変更しない（常にプロジェクトルートで実行）
+func (t *BashTool) SetSandboxDir(dir string) {
+	t.sandboxDir = dir
+}
+
+// SetAutoVenv は自動venv機能を設定する
+func (t *BashTool) SetAutoVenv(enabled bool, venvDir string) {
+	t.autoVenv = enabled
+	if venvDir != "" {
+		t.venvDir = venvDir
+	}
 }
 
 // Name returns the tool name
@@ -101,8 +122,11 @@ func (t *BashTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 		return t.executeInBackground(args.Command, timeout)
 	}
 
+	// Python自動venv: コマンドがPython関連なら.venvのactivateを前置
+	command := t.wrapWithVenvIfNeeded(args.Command)
+
 	// Execute command synchronously
-	return t.executeSync(ctx, args.Command, timeout)
+	return t.executeSync(ctx, command, timeout)
 }
 
 // executeSync executes a command synchronously
@@ -120,13 +144,16 @@ func (t *BashTool) executeSync(ctx context.Context, command string, timeout time
 		shellCmd = "cmd.exe"
 		shellArgs = []string{"/c", command}
 	default:
-		shellCmd = "sh"
+		// bashを使用（sourceコマンド、venv activateに必要）
+		shellCmd = "bash"
 		shellArgs = []string{"-c", command}
 	}
 
 	// Create command with sanitized environment
 	cmd := exec.CommandContext(ctx, shellCmd, shellArgs...)
 	cmd.Env = sanitizeEnv()
+	// 作業ディレクトリは常にプロジェクトルート（プロセスのcwd）を使用
+	// sandboxモードでもbashはプロジェクトルートで実行する
 
 	// Capture stdout and stderr
 	var stdout, stderr bytes.Buffer
@@ -155,6 +182,87 @@ func (t *BashTool) executeSync(ctx context.Context, command string, timeout time
 	}
 
 	return NewResultWithID("", output), nil
+}
+
+// wrapWithVenvIfNeeded はPythonコマンドを検出した場合に.venvのactivateを前置する
+func (t *BashTool) wrapWithVenvIfNeeded(command string) string {
+	if !t.autoVenv {
+		return command
+	}
+
+	// Python関連コマンドでなければそのまま
+	if !isPythonCommand(command) {
+		return command
+	}
+
+	// 既にactivateやvenv作成を含んでいる場合はそのまま
+	if strings.Contains(command, "activate") ||
+		strings.Contains(command, "uv venv") ||
+		strings.Contains(command, "python3 -m venv") ||
+		strings.Contains(command, "python -m venv") {
+		return command
+	}
+
+	// venvは常にプロジェクトルート（cwd）に作成
+	workDir, _ := os.Getwd()
+	venvActivate := filepath.Join(workDir, t.venvDir, "bin", "activate")
+
+	// .venvが既に存在する場合: activateして実行
+	if _, err := os.Stat(venvActivate); err == nil {
+		return fmt.Sprintf("source %s && %s", venvActivate, command)
+	}
+
+	// .venvがない場合: 作成してからactivate
+	// uv があれば uv venv、なければ python3 -m venv にフォールバック
+	venvPath := filepath.Join(workDir, t.venvDir)
+	createVenv := fmt.Sprintf(
+		"if command -v uv >/dev/null 2>&1; then uv venv %s; else python3 -m venv %s; fi",
+		venvPath, venvPath,
+	)
+
+	return fmt.Sprintf("%s && source %s && %s", createVenv, venvActivate, command)
+}
+
+// isPythonCommand はコマンドがPython関連かどうかを判定する
+func isPythonCommand(command string) bool {
+	cmd := strings.TrimSpace(command)
+
+	// 先頭のコマンド名で判定
+	pythonPrefixes := []string{
+		"python3 ", "python3\n", "python ",  "python\n",
+		"pip ", "pip3 ", "pip install",
+		"uv pip", "uv run",
+		"pytest", "mypy", "ruff", "black", "isort", "flake8",
+		"flask", "django", "uvicorn", "gunicorn", "streamlit",
+	}
+	for _, prefix := range pythonPrefixes {
+		if strings.HasPrefix(cmd, prefix) {
+			return true
+		}
+	}
+	// "python3" 単体（改行やスペースなし）
+	if cmd == "python3" || cmd == "python" {
+		return true
+	}
+
+	// パイプやセミコロン、&&の後にpythonが来るケース
+	if strings.Contains(cmd, "| python") || strings.Contains(cmd, "&& python") ||
+		strings.Contains(cmd, "; python") {
+		return true
+	}
+
+	// .pyファイルを実行するケース（python foo.py や python3 script.py）
+	if strings.Contains(cmd, ".py") {
+		fields := strings.Fields(cmd)
+		if len(fields) > 0 {
+			first := fields[0]
+			if first == "python" || first == "python3" || strings.HasSuffix(first, ".py") {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // truncateOutput truncates output to maximum length

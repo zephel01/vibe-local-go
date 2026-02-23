@@ -156,13 +156,13 @@ func TestModelRouter_SelectModelByMemory(t *testing.T) {
 		memoryGB  float64
 		wantModel string
 	}{
-		{"Tier A", 256, "qwen2.5-72b-instruct"},
-		{"Tier B", 96, "llama3.1-70b-instruct"},
-		{"Tier C high", 32, "qwen2.5-32b-instruct"},
-		{"Tier C mid", 16, "llama3.1-8b-instruct"},
-		{"Tier D", 8, "llama3.2-3b-instruct"},
-		{"Tier E", 4, "qwen2.5-1.5b-instruct"},
-		{"Below Tier E", 2, "qwen2.5-1.5b-instruct"},
+		{"Tier A", 256, "qwen3:72b"},
+		{"Tier B", 96, "qwen3:32b"},
+		{"Tier C high", 32, "qwen3-coder:30b"},
+		{"Tier C mid", 16, "qwen3:8b"},
+		{"Tier D", 8, "qwen3:4b"},
+		{"Tier E", 4, "qwen3:1.7b"},
+		{"Below Tier E", 2, "qwen3:1.7b"},
 	}
 
 	for _, tt := range tests {
@@ -185,13 +185,12 @@ func TestModelRouter_GetModelTier(t *testing.T) {
 		model string
 		tier  string
 	}{
-		{"qwen2.5-72b-instruct", "A"},
-		{"llama3.1-70b-instruct", "B"},
-		{"qwen2.5-32b-instruct", "C"},
-		{"llama3.1-8b-instruct", "D"},
-		{"llama3.2-3b-instruct", "E"},
-		{"qwen2.5-1.5b-instruct", "E"},
-		{"qwen2.5-1.7b-instruct", "E"},
+		{"qwen3:72b", "A"},
+		{"qwen3:32b", "C"},
+		{"qwen3-coder:30b", "C"},
+		{"qwen3:8b", "D"},
+		{"qwen3:4b", "E"},
+		{"qwen3:1.7b", "E"},
 		{"unknown-model", "Unknown"},
 	}
 

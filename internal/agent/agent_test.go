@@ -432,6 +432,170 @@ func TestLoopDetectorClearToolCount(t *testing.T) {
 	}
 }
 
+func TestNormalizeJSONArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "already a JSON object",
+			input:    `{"command":"ls"}`,
+			expected: `{"command":"ls"}`,
+		},
+		{
+			name:     "single string encoding",
+			input:    `"{\"command\":\"ls\"}"`,
+			expected: `{"command":"ls"}`,
+		},
+		{
+			name:     "double string encoding",
+			input:    `"\"{\\\"command\\\":\\\"ls\\\"}\""`,
+			expected: `{"command":"ls"}`,
+		},
+		{
+			name:     "string with unicode escapes",
+			input:    `"{\"command\":\"mkdir tetris \\u0026\\u0026 cd tetris\"}"`,
+			expected: `{"command":"mkdir tetris \u0026\u0026 cd tetris"}`,
+		},
+		{
+			name:     "complex object with newlines",
+			input:    `"{\"path\":\"test.py\",\"content\":\"print(\\\"hello\\\")\\n\"}"`,
+			expected: `{"content":"print(\"hello\")\n","path":"test.py"}`,
+		},
+		{
+			name:     "empty object",
+			input:    `{}`,
+			expected: `{}`,
+		},
+		{
+			name:     "empty string encoded",
+			input:    `"{}"`,
+			expected: `{}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeJSONArgs([]byte(tt.input))
+			// Parse both expected and result as JSON for comparison
+			// (key ordering may differ)
+			var expectedMap, resultMap map[string]interface{}
+			if err1 := json.Unmarshal([]byte(tt.expected), &expectedMap); err1 == nil {
+				if err2 := json.Unmarshal([]byte(result), &resultMap); err2 == nil {
+					// Compare maps
+					expectedBytes, _ := json.Marshal(expectedMap)
+					resultBytes, _ := json.Marshal(resultMap)
+					if string(expectedBytes) != string(resultBytes) {
+						t.Errorf("normalizeJSONArgs(%s) = %s, want %s", tt.input, result, tt.expected)
+					}
+					return
+				}
+			}
+			// Fallback: string comparison
+			if result != tt.expected {
+				t.Errorf("normalizeJSONArgs(%s) = %s, want %s", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseChatResponseWithStringArgs(t *testing.T) {
+	// Simulate LLM returning arguments as a JSON string (common with Ollama)
+	resp := &llm.ChatResponse{
+		Choices: []llm.Choice{
+			{
+				Message: llm.Message{
+					Content: "",
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:   "call_1",
+							Type: "function",
+							Function: llm.FunctionCall{
+								Name:      "bash",
+								Arguments: []byte(`"{\"command\":\"ls -la\"}"`),
+							},
+						},
+					},
+				},
+				FinishReason: "tool_calls",
+			},
+		},
+	}
+
+	result, err := parseChatResponse(resp)
+	if err != nil {
+		t.Fatalf("parseChatResponse failed: %v", err)
+	}
+
+	if len(result.ToolCalls) != 1 {
+		t.Fatalf("Expected 1 tool call, got %d", len(result.ToolCalls))
+	}
+
+	tc := result.ToolCalls[0]
+	if tc.Function.Name != "bash" {
+		t.Errorf("Expected tool name 'bash', got '%s'", tc.Function.Name)
+	}
+
+	// The arguments should be a valid JSON object string
+	var args struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		t.Errorf("Failed to unmarshal arguments: %v (arguments = %s)", err, tc.Function.Arguments)
+	}
+
+	if args.Command != "ls -la" {
+		t.Errorf("Expected command 'ls -la', got '%s'", args.Command)
+	}
+}
+
+func TestParseChatResponseWithObjectArgs(t *testing.T) {
+	// Simulate LLM returning arguments as a JSON object (standard format)
+	resp := &llm.ChatResponse{
+		Choices: []llm.Choice{
+			{
+				Message: llm.Message{
+					Content: "",
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:   "call_1",
+							Type: "function",
+							Function: llm.FunctionCall{
+								Name:      "write_file",
+								Arguments: []byte(`{"path":"test.py","content":"print('hello')"}`),
+							},
+						},
+					},
+				},
+				FinishReason: "tool_calls",
+			},
+		},
+	}
+
+	result, err := parseChatResponse(resp)
+	if err != nil {
+		t.Fatalf("parseChatResponse failed: %v", err)
+	}
+
+	if len(result.ToolCalls) != 1 {
+		t.Fatalf("Expected 1 tool call, got %d", len(result.ToolCalls))
+	}
+
+	// Should be parseable as JSON
+	var args struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal([]byte(result.ToolCalls[0].Function.Arguments), &args); err != nil {
+		t.Errorf("Failed to unmarshal arguments: %v (arguments = %s)", err, result.ToolCalls[0].Function.Arguments)
+	}
+
+	if args.Path != "test.py" {
+		t.Errorf("Expected path 'test.py', got '%s'", args.Path)
+	}
+}
+
 func TestLoopDetectorStuckLoop(t *testing.T) {
 	agent := createSimpleTestAgent()
 

@@ -2,7 +2,10 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
+	"time"
 )
 
 // StreamResponse displays a streaming response from the LLM
@@ -98,49 +101,72 @@ func (t *Terminal) StreamResponseWithCodeFilter(ctx context.Context, textChan <-
 	return nil
 }
 
-// ToolSpinner represents a spinner for tool execution
+// ToolSpinner represents a spinner with elapsed time display
 type ToolSpinner struct {
-	terminal *Terminal
-	running  bool
-	stopped  chan struct{}
+	terminal  *Terminal
+	running   bool
+	stopped   chan struct{}
+	startTime time.Time
+	message   string
+	mu        sync.Mutex
 }
 
 // NewToolSpinner creates a new tool spinner
 func NewToolSpinner(terminal *Terminal) *ToolSpinner {
 	return &ToolSpinner{
 		terminal: terminal,
-		stopped:  make(chan struct{}),
 	}
 }
 
-// Start starts spinner
+// Start starts the spinner with a message and elapsed time display
 func (s *ToolSpinner) Start(message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.running {
+		// Already running — just update the message
+		s.message = message
 		return
 	}
 
 	s.running = true
+	s.message = message
+	s.startTime = time.Now()
 	s.stopped = make(chan struct{})
 
 	go func() {
 		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		i := 0
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
 
 		for {
 			select {
 			case <-s.stopped:
 				return
-			default:
+			case <-ticker.C:
+				s.mu.Lock()
+				elapsed := time.Since(s.startTime)
+				msg := s.message
+				s.mu.Unlock()
+
+				// Format elapsed time
+				elapsedStr := formatElapsed(elapsed)
+
 				s.terminal.ClearLine()
-				s.terminal.PrintColored(ColorCyan, frames[i]+" "+message)
+				s.terminal.PrintColored(ColorCyan,
+					fmt.Sprintf("  %s %s (%s)", frames[i], msg, elapsedStr))
 				i = (i + 1) % len(frames)
 			}
 		}
 	}()
 }
 
-// Stop stops spinner
+// Stop stops the spinner and clears the line
 func (s *ToolSpinner) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if !s.running {
 		return
 	}
@@ -150,12 +176,28 @@ func (s *ToolSpinner) Stop() {
 	s.terminal.ClearLine()
 }
 
-// Update updates spinner message
+// Update updates the spinner message without restarting the timer
 func (s *ToolSpinner) Update(message string) {
-	if !s.running {
-		return
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	s.terminal.ClearLine()
-	s.terminal.PrintColored(ColorCyan, "⠋ "+message)
+	s.message = message
+}
+
+// IsRunning returns whether the spinner is currently active
+func (s *ToolSpinner) IsRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.running
+}
+
+// formatElapsed formats a duration for display
+func formatElapsed(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%.0fms", float64(d.Milliseconds()))
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	return fmt.Sprintf("%dm%02ds", int(d.Minutes()), int(d.Seconds())%60)
 }

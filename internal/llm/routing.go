@@ -177,23 +177,23 @@ func (mr *ModelRouter) SelectModelByMemory(memoryGB float64) string {
 	// メモリティアに基づいて推奨モデルを返す
 	switch {
 	case memoryGB >= 256:
-		// Tier A: qwen2.5-72b-instruct
-		return "qwen2.5-72b-instruct"
+		// Tier A: qwen3:72b
+		return "qwen3:72b"
 	case memoryGB >= 96:
-		// Tier B: llama3.1-70b-instruct
-		return "llama3.1-70b-instruct"
+		// Tier B: qwen3:32b
+		return "qwen3:32b"
 	case memoryGB >= 32:
-		// Tier C上位: qwen2.5-32b-instruct
-		return "qwen2.5-32b-instruct"
+		// Tier C上位: qwen3-coder:30b
+		return "qwen3-coder:30b"
 	case memoryGB >= 16:
-		// Tier C中位: llama3.1-8b-instruct
-		return "llama3.1-8b-instruct"
+		// Tier C中位: qwen3:8b
+		return "qwen3:8b"
 	case memoryGB >= 8:
-		// Tier D: llama3.2-3b-instruct
-		return "llama3.2-3b-instruct"
+		// Tier D: qwen3:4b
+		return "qwen3:4b"
 	default:
-		// Tier E: qwen2.5-1.5b-instruct
-		return "qwen2.5-1.5b-instruct"
+		// Tier E: qwen3:1.7b
+		return "qwen3:1.7b"
 	}
 }
 
@@ -259,7 +259,7 @@ func (mr *ModelRouter) GetModelTier(model string) string {
 		return "E"
 	case strings.Contains(model, "7b"):
 		return "D"
-	case strings.Contains(model, "3b"):
+	case strings.Contains(model, "4b") || strings.Contains(model, "3b"):
 		return "E"
 	default:
 		return "Unknown"

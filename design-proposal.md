@@ -413,13 +413,13 @@ build-all:
 
 ```bash
 # macOS / Linux: バイナリダウンロード一発
-curl -fsSL https://github.com/user/vibe-local-go/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/zephel01/vibe-local-go/releases/latest/download/install.sh | sh
 
 # Windows: PowerShell 一発
-irm https://github.com/user/vibe-local-go/releases/latest/download/install.ps1 | iex
+irm https://github.com/zephel01/vibe-local-go/releases/latest/download/install.ps1 | iex
 
 # Go ユーザー向け
-go install github.com/user/vibe-local-go/cmd/vibe@latest
+go install github.com/zephel01/vibe-local-go/cmd/vibe@latest
 ```
 
 現行の install.sh（49K）/ install.ps1（35K）は、バイナリダウンロード + PATH 設定のみの軽量スクリプト（各1KB程度）に置き換わる。

@@ -69,12 +69,19 @@ ollama serve
 ### 2. モデルをダウンロード（初回のみ）
 
 ```bash
-# 推奨モデル（RAM自動選択が使用されます）
-ollama pull llama3.1-8b-instruct
+# 推奨モデル（16GB RAMの場合）
+ollama pull qwen3:8b
 
 # 32GB以上RAMの場合
-ollama pull qwen2.5-32b-instruct
+ollama pull qwen3-coder:30b
+
+# モデルが見つからない場合は検索してみてください
+ollama search qwen3
 ```
+
+> **注意**: Ollamaのモデル名は `モデル名:サイズ` の形式です（例: `qwen3:8b`）。
+> Hugging Faceの名前（`qwen2.5-32b-instruct` 等）とは異なります。
+> 利用可能なモデルは `ollama search <名前>` で検索できます。
 
 ### 3. vibe-local-goを起動
 
@@ -140,8 +147,8 @@ vibe-local-go --list-sessions
 ### 例
 
 ```bash
-# モデルを指定
-vibe-local-go --model qwen2.5-32b-instruct
+# モデルを指定（Ollamaのモデル名を使用）
+vibe-local-go --model qwen3:8b
 
 # ワンショット
 vibe-local-go -p "現在のディレクトリのファイルを一覧にして"
@@ -176,14 +183,14 @@ vibe-local-go --max-tokens 4096 --temperature 0.5
 
 | RAM容量 | 推奨モデル | 備考 |
 |---------|-----------|------|
-| 256GB+ | qwen2.5-72b-instruct | 最高品質、処理は遅め |
-| 96GB+ | llama3.1-70b-instruct | 高品質、実用的な速度 |
-| 32GB+ | qwen2.5-32b-instruct | 高品質と速度のバランス |
-| 16GB+ | llama3.1-8b-instruct | 十分な品質、高速 |
-| 8GB+ | llama3.2-3b-instruct | 軽量、非常に高速 |
-| 4GB+ | qwen2.5-1.5b-instruct | 最小限、瞬時に実行 |
+| 256GB+ | qwen3:72b | 最高品質、処理は遅め |
+| 96GB+ | qwen3:32b | 高品質、実用的な速度 |
+| 32GB+ | qwen3-coder:30b | 高品質と速度のバランス |
+| 16GB+ | qwen3:8b | 十分な品質、高速 |
+| 8GB+ | qwen3:4b | 軽量、非常に高速 |
+| 4GB+ | qwen3:1.7b | 最小限、瞬時に実行 |
 
-**注**: `--model` オプションで任意のモデルを指定できます。
+**注**: `--model` オプションで任意のモデルを指定できます。利用可能なモデルは `ollama search <名前>` で検索できます。
 
 ## 内蔵ツール
 
@@ -357,8 +364,14 @@ ollama serve
 ### "モデルが見つかりません"
 
 ```bash
-# モデルをダウンロード
-ollama pull llama3.1-8b-instruct
+# モデルを検索（正しい名前を確認）
+ollama search qwen3
+
+# モデルをダウンロード（Ollamaの名前形式: モデル名:サイズ）
+ollama pull qwen3:8b
+
+# モデル名がわからない場合
+ollama search <キーワード>
 ```
 
 ### "コマンドが見つかりません"

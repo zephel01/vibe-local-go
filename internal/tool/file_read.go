@@ -260,7 +260,9 @@ func isImageFile(ext string) bool {
 	return false
 }
 
-// resolvePath resolves symlinks and validates path
+// resolvePath resolves symlinks and validates path.
+// For paths that don't exist yet (e.g. write_file creating new files),
+// it resolves the closest existing ancestor and appends the remaining components.
 func resolvePath(path string) (string, error) {
 	// Clean path
 	path = filepath.Clean(path)
@@ -277,10 +279,43 @@ func resolvePath(path string) (string, error) {
 	// Resolve symlinks
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
+		// If the path doesn't exist yet (common for write operations),
+		// try to resolve the closest existing ancestor directory instead.
+		if os.IsNotExist(err) {
+			return resolveNonExistentPath(path)
+		}
 		return "", err
 	}
 
 	return resolved, nil
+}
+
+// resolveNonExistentPath resolves a path where the target (and possibly some
+// parent directories) don't exist yet. It finds the closest existing ancestor,
+// resolves symlinks on that, and appends the remaining path components.
+func resolveNonExistentPath(path string) (string, error) {
+	current := path
+	var missingParts []string
+
+	for {
+		parent := filepath.Dir(current)
+		if parent == current {
+			// Reached filesystem root — just return the cleaned path
+			return path, nil
+		}
+
+		missingParts = append([]string{filepath.Base(current)}, missingParts...)
+		current = parent
+
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			// Found existing ancestor, reconstruct full path
+			return filepath.Join(append([]string{resolved}, missingParts...)...), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
 }
 
 // lineScanner implements a scanner with offset and limit

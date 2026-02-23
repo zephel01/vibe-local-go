@@ -84,6 +84,29 @@ func BuildSystemPrompt(cfg *Config) string {
 		prompt.WriteString("\n")
 	}
 
+	// Python / venv instructions
+	prompt.WriteString("## Python環境管理\n\n")
+	prompt.WriteString("Pythonスクリプトを作成・実行する際は、必ず仮想環境を使用してください。\n")
+	prompt.WriteString("auto-venvモードが有効な場合、bashでpythonコマンドを実行すると自動的にvenvが作成・activateされます。\n")
+	prompt.WriteString("手動で行う場合の手順:\n\n")
+	prompt.WriteString("```bash\n")
+	prompt.WriteString("# 仮想環境を作成（uvがあればuv、なければpython3 -m venv）\n")
+	prompt.WriteString("python3 -m venv .venv\n\n")
+	prompt.WriteString("# 有効化\n")
+	prompt.WriteString("source .venv/bin/activate\n\n")
+	prompt.WriteString("# パッケージのインストール\n")
+	prompt.WriteString("pip install <package>\n\n")
+	prompt.WriteString("# スクリプトの実行\n")
+	prompt.WriteString("python script.py\n")
+	prompt.WriteString("```\n\n")
+	prompt.WriteString("### 重要なルール\n")
+	prompt.WriteString("- グローバル環境に直接 pip install しないでください\n")
+	prompt.WriteString("- 既に `.venv/` が存在する場合は再作成せず `source .venv/bin/activate` して使用してください\n")
+	prompt.WriteString("- 仮想環境はプロジェクトルートの `.venv/` に作成してください\n\n")
+
+	// Sandbox mode (venv隔離)
+	// ファイルステージングは行わない。sandboxの意味はPython仮想環境による隔離のみ。
+
 	// Enhanced prompt rules (ROADMAP P0)
 	prompt.WriteString("## 重要な注意点\n\n")
 	prompt.WriteString("### ZERO Preambleルール\n")

@@ -17,11 +17,19 @@ const (
 	MaxUndoStack = 20
 )
 
+// SandboxStager はサンドボックスへのステージングインターフェース
+// sandbox パッケージへの循環参照を避けるためインターフェースで定義
+type SandboxStager interface {
+	IsEnabled() bool
+	Stage(originalPath string, content []byte) error
+}
+
 // WriteTool writes content to files
 type WriteTool struct {
 	baseDir    string
 	undoStack  []UndoEntry
 	undoMutex  sync.Mutex
+	sandbox    SandboxStager
 }
 
 // NewWriteTool creates a new write tool
@@ -29,6 +37,11 @@ func NewWriteTool() *WriteTool {
 	return &WriteTool{
 		undoStack: make([]UndoEntry, 0),
 	}
+}
+
+// SetSandbox はサンドボックスマネージャーを設定する
+func (t *WriteTool) SetSandbox(sb SandboxStager) {
+	t.sandbox = sb
 }
 
 // Name returns the tool name
@@ -93,6 +106,16 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 	if isSymlink(args.Path) {
 		return NewErrorResult(fmt.Errorf("cannot write to symlink: %s", args.Path)), nil
 	}
+
+	// サンドボックスモードの場合はステージングにリダイレクト
+	if t.sandbox != nil && t.sandbox.IsEnabled() {
+		if err := t.sandbox.Stage(resolvedPath, []byte(args.Content)); err != nil {
+			return NewErrorResult(fmt.Errorf("sandbox staging failed: %w", err)), nil
+		}
+		return NewResult(fmt.Sprintf("[sandbox] Staged %d bytes → %s (use /commit to apply, /diff to review)", len(args.Content), args.Path)), nil
+	}
+
+	// 通常モード: 直接書き込み
 
 	// Create parent directories
 	parentDir := filepath.Dir(resolvedPath)

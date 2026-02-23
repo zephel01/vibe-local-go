@@ -34,6 +34,7 @@ type Agent struct {
 	terminal       *ui.Terminal
 	config         *config.Config
 	loopDetector   *LoopDetector
+	spinner        *ui.ToolSpinner
 }
 
 // NewAgent creates a new agent
@@ -55,6 +56,7 @@ func NewAgent(
 		terminal:      term,
 		config:        cfg,
 		loopDetector:  NewLoopDetector(),
+		spinner:       ui.NewToolSpinner(term),
 	}
 }
 
@@ -84,11 +86,16 @@ func (a *Agent) Run(ctx context.Context, userInput string) error {
 		messages := a.session.GetMessagesForLLM()
 		tools := a.registry.GetSchemas()
 
-		// Call LLM
+		// Call LLM (スピナー表示)
+		a.spinner.Start("🧠 Thinking...")
 		response, err := a.callLLM(ctx, messages, tools)
+		a.spinner.Stop()
 		if err != nil {
 			return fmt.Errorf("LLM call failed: %w", err)
 		}
+
+		// トークン使用量を表示（Python版準拠）
+		a.terminal.ShowTokenUsage(response.PromptTokens, response.CompletionTokens, a.config.ContextWindow)
 
 		// Check for tool calls
 		if len(response.ToolCalls) == 0 {
@@ -248,11 +255,13 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 	// Show tool call
 	a.terminal.ShowToolCall(toolName, json.RawMessage(arguments))
 
-	// Execute tool with timeout
+	// Execute tool with timeout (スピナー表示)
 	ctx, cancel := context.WithTimeout(ctx, ToolExecutionTimeout)
 	defer cancel()
 
+	a.spinner.Start(fmt.Sprintf("⚡ %s...", toolName))
 	toolResult, err := toolInst.Execute(ctx, json.RawMessage(arguments))
+	a.spinner.Stop()
 	if err != nil {
 		return ToolResult{
 			ToolCallID: toolCall.ID,
@@ -297,8 +306,47 @@ func (a *Agent) askUserPermission(toolName string, arguments string) (bool, erro
 
 // ChatResponse represents a chat response
 type ChatResponse struct {
-	Content   string
-	ToolCalls []session.ToolCall
+	Content          string
+	ToolCalls        []session.ToolCall
+	PromptTokens     int
+	CompletionTokens int
+}
+
+// normalizeJSONArgs normalizes tool call arguments to a valid JSON object string.
+// Handles multiple levels of JSON string encoding that some LLMs produce.
+// e.g., `{"command":"ls"}` → `{"command":"ls"}` (already correct)
+// e.g., `"{\"command\":\"ls\"}"` → `{"command":"ls"}` (single string encoding)
+// e.g., `"\"{\\\"command\\\":\\\"ls\\\"}\""` → `{"command":"ls"}` (double string encoding)
+func normalizeJSONArgs(raw json.RawMessage) string {
+	data := string(raw)
+
+	// Try to unwrap string encoding layers (max 3 levels)
+	for i := 0; i < 3; i++ {
+		// Check if it's already a valid JSON object
+		trimmed := strings.TrimSpace(data)
+		if len(trimmed) > 0 && trimmed[0] == '{' {
+			// Validate it's proper JSON
+			var obj map[string]interface{}
+			if err := json.Unmarshal([]byte(trimmed), &obj); err == nil {
+				// Re-marshal to normalize (clean up any encoding artifacts)
+				argsBytes, _ := json.Marshal(obj)
+				return string(argsBytes)
+			}
+		}
+
+		// Try to unquote one layer of JSON string encoding
+		var unquoted string
+		if err := json.Unmarshal([]byte(data), &unquoted); err == nil {
+			data = unquoted
+			continue
+		}
+
+		// Can't unquote further, return what we have
+		break
+	}
+
+	// Return the best we got
+	return data
 }
 
 // parseChatResponse parses LLM response
@@ -310,19 +358,22 @@ func parseChatResponse(resp *llm.ChatResponse) (*ChatResponse, error) {
 	choice := resp.Choices[0]
 
 	result := &ChatResponse{
-		Content:   choice.Message.Content,
-		ToolCalls: make([]session.ToolCall, 0),
+		Content:          choice.Message.Content,
+		ToolCalls:        make([]session.ToolCall, 0),
+		PromptTokens:     resp.Usage.PromptTokens,
+		CompletionTokens: resp.Usage.CompletionTokens,
 	}
 
 	// Parse tool calls from message
 	for _, tc := range choice.Message.ToolCalls {
-		argumentsJSON, _ := json.Marshal(tc.Function.Arguments)
+		argsStr := normalizeJSONArgs(tc.Function.Arguments)
+
 		result.ToolCalls = append(result.ToolCalls, session.ToolCall{
 			ID:   tc.ID,
 			Type:  tc.Type,
 			Function: session.FunctionCall{
 				Name:      tc.Function.Name,
-				Arguments: string(argumentsJSON),
+				Arguments: argsStr,
 			},
 		})
 	}
@@ -375,13 +426,14 @@ func (a *Agent) ExtractToolCallsFromXML(text string, knownTools []string) ([]ses
 	// Convert to session tool calls
 	sessionToolCalls := make([]session.ToolCall, 0, len(toolCalls))
 	for _, tc := range toolCalls {
-		argsJSON, _ := json.Marshal(tc.Function.Arguments)
+		argsStr := normalizeJSONArgs(tc.Function.Arguments)
+
 		sessionToolCalls = append(sessionToolCalls, session.ToolCall{
 			ID:   tc.ID,
 			Type:  tc.Type,
 			Function: session.FunctionCall{
 				Name:      tc.Function.Name,
-				Arguments: string(argsJSON),
+				Arguments: argsStr,
 			},
 		})
 	}
@@ -510,4 +562,18 @@ func (a *Agent) UpdateSystemPrompt(prompt string) {
 func (a *Agent) Clear() {
 	a.session.Clear()
 	a.loopDetector.Reset()
+}
+
+// GetContextUsagePercent コンテキスト使用率を取得 (0-100)
+func (a *Agent) GetContextUsagePercent() int {
+	tokenCount := a.session.GetTokenCount()
+	contextWindow := a.session.GetContextWindow()
+	if contextWindow == 0 {
+		return 0
+	}
+	pct := int(float64(tokenCount) / float64(contextWindow) * 100)
+	if pct > 100 {
+		pct = 100
+	}
+	return pct
 }

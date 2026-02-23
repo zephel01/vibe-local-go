@@ -49,6 +49,14 @@ type Config struct {
 	// Debug mode
 	Debug bool
 
+	// Sandbox mode — ファイル書き込みをステージングディレクトリで行う
+	SandboxMode bool
+
+	// AutoVenv — Python実行時に自動で.venvを作成・activateする
+	AutoVenv bool
+	// VenvDir — 仮想環境のディレクトリ名（デフォルト: .venv）
+	VenvDir string
+
 	// Platform-specific
 	OS   string // "darwin", "linux", "windows"
 	Arch string // "amd64", "arm64"
@@ -67,6 +75,7 @@ func DefaultConfig() *Config {
 		Temperature:   DefaultTemperature,
 		ContextWindow: DefaultContextWindow,
 		OllamaHost:    DefaultOllamaHost,
+		VenvDir:       ".venv",
 		OS:            detectOS(),
 		Arch:          detectArch(),
 	}
@@ -84,17 +93,17 @@ func detectArch() string {
 func RecommendModel(memoryGB float64) string {
 	switch {
 	case memoryGB >= 256:
-		return "qwen2.5-72b-instruct" // Tier A
+		return "qwen3:72b" // Tier A
 	case memoryGB >= 96:
-		return "llama3.1-70b-instruct" // Tier B
+		return "qwen3:32b" // Tier B
 	case memoryGB >= 32:
-		return "qwen2.5-32b-instruct" // Tier C 上位
+		return "qwen3-coder:30b" // Tier C 上位
 	case memoryGB >= 16:
-		return "llama3.1-8b-instruct" // Tier C 中位
+		return "qwen3:8b" // Tier C 中位
 	case memoryGB >= 8:
-		return "llama3.2-3b-instruct" // Tier D
+		return "qwen3:4b" // Tier D
 	default:
-		return "qwen2.5-1.5b-instruct" // Tier E
+		return "qwen3:1.7b" // Tier E
 	}
 }
 

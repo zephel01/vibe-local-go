@@ -77,10 +77,8 @@ func (pm *PermissionManager) CheckPermission(toolName string, params map[string]
 
 	// Always-approve mode (-y flag)
 	if pm.alwaysApprove {
-		if category == ToolDangerous {
-			// Still check dangerous commands
-			return false, "dangerous", fmt.Errorf("tool requires confirmation even in auto-approve mode: %s", toolName)
-		}
+		// -y フラグが指定されている場合はすべてのツールを自動承認
+		// （ユーザーが明示的に全自動を要求している）
 		return true, "always_approved", nil
 	}
 
@@ -287,4 +285,11 @@ func (pm *PermissionManager) GetRules() map[string]PermissionType {
 		rules[k] = v
 	}
 	return rules
+}
+
+// SetAutoApprove 自動許可モードを設定
+func (pm *PermissionManager) SetAutoApprove(autoApprove bool) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.alwaysApprove = autoApprove
 }

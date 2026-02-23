@@ -18,7 +18,7 @@
 ## Phase 0: プロジェクト初期化
 
 ### T-000: リポジトリ初期化
-- [x] `go mod init github.com/user/vibe-local-go`
+- [x] `go mod init github.com/zephel01/vibe-local-go`
 - [x] ディレクトリ構成作成（cmd/, internal/, Makefile）
 - [x] .gitignore（dist/, *.exe, .DS_Store）
 - [x] LICENSE（MIT）
@@ -623,20 +623,360 @@ Phase 7: T-2101, T-2102
 
 ---
 
+## Phase 8: マルチプロバイダー対応
+
+> 設計書: provider-design.md
+> 目標: Ollama以外のLLMバックエンド（llama-server, クラウドLLM等）に対応
+
+### P1: LLMProvider インターフェース抽出
+
+**目標**: 既存動作を壊さずにインターフェースを導入。Agent が具象型ではなくインターフェースに依存するようにする。
+
+- [ ] T-8101: LLMProvider インターフェース定義（internal/llm/provider.go）
+  - LLMProvider interface: Chat(), ChatStream(), CheckHealth(), Info()
+  - ProviderInfo struct: Name, Type(local/cloud), BaseURL, Model, Features
+  - Features struct: NativeFunctionCalling, ModelManagement, Streaming, Vision, ContextWindowReport
+  - 推定: ~80行 | 依存: なし
+
+- [ ] T-8102: 拡張インターフェース定義（internal/llm/provider.go）
+  - ModelManager interface: ListModels(), PullModel(), SearchModels(), DeleteModel()
+  - ModelInfo struct: Name, Size, ContextSize, Family, ParameterSize, Quantization
+  - ContextReporter interface: GetContextWindow(), GetTokenUsage()
+  - 推定: ~60行 | 依存: T-8101
+
+- [ ] T-8103: OpenAICompatProvider 実装（internal/llm/openai_compat.go）
+  - 既存 client.go + sync.go + streaming.go のコードを移動・リファクタ
+  - OpenAICompatProvider struct: baseURL, apiKey, model, httpClient, info
+  - LLMProvider インターフェースを実装
+  - apiKey が空でも動作（ローカル用）
+  - XMLフォールバックをChat()内に統合
+  - 推定: ~300行 | 依存: T-8101
+
+- [ ] T-8104: OllamaProvider 実装（internal/llm/ollama.go）
+  - OpenAICompatProvider 埋め込み + Ollama固有API
+  - ModelManager インターフェース実装（/api/tags, /api/pull）
+  - CheckHealth() で /api/tags をチェック
+  - 推定: ~120行 | 依存: T-8103
+
+- [ ] T-8105: Agent のインターフェース依存化
+  - Agent.client *llm.Client → Agent.provider llm.LLMProvider
+  - NewAgent() の引数変更
+  - callLLM() を provider.Chat() に変更
+  - 推定: ~30行差分 | 依存: T-8101
+
+- [ ] T-8106: main.go の更新
+  - createLLMClient() → createProvider() に変更
+  - OllamaProvider を生成して Agent に渡す
+  - checkOllamaConnection → provider.CheckHealth() に統一
+  - pullModelIfNeeded → ModelManager型アサーションで分岐
+  - ShutdownManager の型変更
+  - 推定: ~50行差分 | 依存: T-8104, T-8105
+
+- [ ] T-8107: Config 構造体の拡張
+  - ProviderConfig struct: Name, Type, URL, APIKey, Model, Role, Priority, Options
+  - Config.Providers []ProviderConfig 追加
+  - OllamaHost → Providers への内部変換（後方互換）
+  - 推定: ~60行 | 依存: T-8101
+
+- [ ] T-8108: 既存テストの更新
+  - routing_test.go のプロバイダー型対応
+  - agent テストのモック更新（LLMProvider インターフェースモック）
+  - 全テストパス確認
+  - 推定: ~100行差分 | 依存: T-8105, T-8106
+
+---
+
+### P2: llama-server / llama.app 対応
+
+**目標**: llama-server（llama.cpp）および llama.app を LLM バックエンドとして使えるようにする。
+
+- [ ] T-8201: LlamaServerProvider 実装（internal/llm/llama_server.go）
+  - OpenAICompatProvider をそのまま使用（エイリアス的実装）
+  - モデル管理なし（起動時にモデル指定済み）
+  - CheckHealth() で /v1/models エンドポイントをチェック
+  - Info() で name="llama-server" を返す
+  - 推定: ~40行 | 依存: T-8103
+
+- [ ] T-8202: 自動検出ロジック（internal/llm/autodetect.go）
+  - AutoDetect(ctx) → []DetectedProvider
+  - 並行チェック（goroutine + WaitGroup、タイムアウト2秒）
+  - チェック対象:
+    - Ollama: localhost:11434 → GET /api/tags
+    - llama-server: localhost:8080 → GET /v1/models
+    - LM Studio: localhost:1234 → GET /v1/models
+    - カスタム: VIBE_LLM_URL 環境変数
+  - DetectedProvider struct: Name, URL, Models[]
+  - 推定: ~120行 | 依存: T-8103, T-8104
+
+- [ ] T-8203: CLIフラグ拡張
+  - --provider <name> : プロバイダー指定
+  - --url <url> : プロバイダーURL
+  - --api-key <key> : APIキー
+  - --fallback <name> : フォールバックプロバイダー
+  - --auto-detect : 自動検出ON/OFF（デフォルト: true）
+  - --list-providers : 検出済みプロバイダー一覧
+  - --host は後方互換として残す（= --provider ollama --url <host>）
+  - 推定: ~40行 | 依存: T-8107
+
+- [ ] T-8204: main.go のプロバイダー初期化フロー改修
+  - 自動検出 → 検出結果表示 → プロバイダー生成
+  - CLI指定があればそちらを優先
+  - config.json の providers[] からの読み込み
+  - ModelManager 対応プロバイダーの場合のみモデル管理処理を実行
+  - 推定: ~80行 | 依存: T-8202, T-8203
+
+- [ ] T-8205: 自動検出テスト
+  - httptest.Server でモックサーバー起動
+  - Ollama / OpenAI互換 / 未検出のケース
+  - タイムアウトテスト
+  - 推定: ~100行 | 依存: T-8202
+
+---
+
+### P3: クラウドプロバイダー対応
+
+**目標**: OpenAI, Anthropic, DeepSeek, GLM/CodeGeeX 等のクラウドLLMに対応。
+
+- [ ] T-8301: APIキー管理（internal/config/apikey.go）
+  - 環境変数からの読み込み（OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY 等）
+  - config.json 内の "${ENV_VAR}" 形式の展開
+  - APIキーの存在確認・バリデーション
+  - APIキーをログ/エラーメッセージに含めない保護
+  - 推定: ~60行 | 依存: T-8107
+
+- [ ] T-8302: OpenAI互換クラウドプロバイダー群
+  - OpenAICompatProvider の URL + APIKey を変えるだけで対応:
+    - OpenAI: https://api.openai.com/v1
+    - DeepSeek: https://api.deepseek.com/v1
+    - GLM/CodeGeeX (智谱AI): https://open.bigmodel.cn/api/paas/v4
+    - Groq: https://api.groq.com/openai/v1
+    - Together AI: https://api.together.xyz/v1
+    - OpenRouter: https://openrouter.ai/api/v1
+    - Google Gemini: https://generativelanguage.googleapis.com/v1beta/openai
+  - プロバイダーごとのデフォルトURL/ヘッダー定義（internal/llm/providers.go）
+  - プロバイダー名 → OpenAICompatProvider 生成のファクトリ関数
+  - 推定: ~100行 | 依存: T-8103, T-8301
+
+- [ ] T-8303: AnthropicProvider 実装（internal/llm/anthropic.go）
+  - ChatRequest → Anthropic Messages API 変換
+    - messages[].role: "system" → system パラメータ（トップレベル）
+    - tools[].function → tools[].name + input_schema
+    - tool_choice 変換
+  - Anthropic Messages API → ChatResponse 変換
+    - content[].type: "text" → choices[0].message.content
+    - content[].type: "tool_use" → choices[0].message.tool_calls[]
+    - stop_reason → finish_reason マッピング
+    - usage 変換
+  - ストリーミング対応（SSE形式は同じだがイベント構造が異なる）
+  - 推定: ~250行 | 依存: T-8101
+
+- [ ] T-8304: プロバイダーファクトリ（internal/llm/factory.go）
+  - NewProvider(cfg ProviderConfig) (LLMProvider, error)
+  - プロバイダー名による分岐:
+    - "ollama" → OllamaProvider
+    - "llama-server", "llama-app", "lm-studio", "localai" → LlamaServerProvider
+    - "openai", "deepseek", "glm", "groq", "together", "openrouter", "gemini" → OpenAICompatProvider(各設定)
+    - "anthropic" → AnthropicProvider
+  - 未知のプロバイダー名 → OpenAICompatProvider（汎用）として生成
+  - 推定: ~80行 | 依存: T-8104, T-8201, T-8302, T-8303
+
+- [ ] T-8305: クラウドプロバイダーテスト
+  - Anthropic 変換のユニットテスト（リクエスト/レスポンス各方向）
+  - ファクトリのテスト（全プロバイダー名）
+  - APIキーなしエラー、不正キー形式の検出
+  - 推定: ~200行 | 依存: T-8303, T-8304
+
+---
+
+### P4: フォールバックチェーン
+
+**目標**: メインプロバイダー失敗時に自動的に次のプロバイダーへ切り替え。
+
+- [ ] T-8401: ProviderChain 実装（internal/llm/chain.go）
+  - ProviderChain struct: providers []ChainEntry, current int
+  - ChainEntry struct: Provider, Role(main/sub/fallback), Priority, Condition
+  - LLMProvider インターフェース実装（透過的に使える）
+  - Chat() でエラー時に次のプロバイダーへフォールバック
+  - ChatStream() も同様のフォールバック
+  - CheckHealth() は全プロバイダーをチェック
+  - 推定: ~150行 | 依存: T-8101
+
+- [ ] T-8402: フォールバック条件制御
+  - ChainCondition struct: OnError, OnTimeout, OnOverload, TaskType
+  - エラー種別による分岐（接続不可 vs モデルエラー vs レート制限）
+  - タイムアウト時のみフォールバック（モデルエラーは別処理）
+  - コンテキスト超過時に大コンテキストモデルへ自動切り替え
+  - 推定: ~80行 | 依存: T-8401
+
+- [ ] T-8403: チェーン状態管理・通知
+  - フォールバック発動時のユーザー通知（"⚠ サブモデルで応答" / "☁ クラウドフォールバック"）
+  - GetChainStatus() → 現在のアクティブプロバイダー情報
+  - プロバイダー復旧時の自動切り戻し（メインが生きていたら戻る）
+  - 推定: ~60行 | 依存: T-8401
+
+- [ ] T-8404: コスト・レート制御（クラウド用）
+  - CloudLimiter struct: MaxRequestsPerMinute, MaxTokensPerDay, MaxCostPerDay, WarnThreshold
+  - デフォルト上限: 10 req/min, 100k tokens/day, $5/day
+  - フォールバック発動時の「☁ APIコスト発生」警告表示
+  - 日次上限到達で自動停止 + メッセージ
+  - 推定: ~80行 | 依存: T-8401
+
+- [ ] T-8405: config.json からのチェーン構築
+  - providers[] 配列の role + priority からチェーン自動構築
+  - role: "main" → priority 1, "sub" → priority 2, "fallback" → priority 10
+  - 推定: ~40行 | 依存: T-8401, T-8107
+
+- [ ] T-8406: フォールバックチェーンテスト
+  - 正常系: メイン成功 → メインの応答
+  - フォールバック: メイン失敗 → サブ成功 → サブの応答
+  - 全失敗: 全プロバイダー失敗 → エラー
+  - 復旧: メイン復旧後の切り戻し
+  - コスト上限: 上限到達で停止
+  - 推定: ~150行 | 依存: T-8401〜T-8404
+
+---
+
+### P5: ゼロコンフィグ + UI統合
+
+**目標**: 初心者が何も設定しなくても自動で最適なプロバイダーを選択。
+
+- [ ] T-8501: スマート初期化フロー（main.go 統合）
+  - 起動時の処理フロー:
+    1. config.json の providers[] があれば → そこからチェーン構築
+    2. CLI --provider 指定があれば → その単体プロバイダー
+    3. どちらもなければ → AutoDetect() で自動検出
+    4. 環境変数にAPIキーがあれば → クラウドをフォールバックに追加
+    5. 何も見つからなければ → エラー + セットアップガイド表示
+  - 推定: ~100行 | 依存: T-8202, T-8304, T-8401
+
+- [ ] T-8502: 検出結果の初心者向け表示
+  - 起動時バナーにプロバイダー情報追加
+  - 例: "🔍 Ollama (qwen3:8b) → メイン / llama-server → サブ"
+  - フォールバック設定時: "☁ OpenAI (gpt-4o) → フォールバック"
+  - 推定: ~40行 | 依存: T-8501
+
+- [ ] T-8503: /providers スラッシュコマンド
+  - 検出済みプロバイダー一覧表示
+  - 各プロバイダーのステータス（接続OK/NG、モデル名）
+  - アクティブなプロバイダーのハイライト
+  - 推定: ~40行 | 依存: T-8401, T-1502
+
+- [ ] T-8504: /switch コマンド（プロバイダー切り替え）
+  - /switch ollama → メインをOllamaに切り替え
+  - /switch openai → OpenAIに切り替え
+  - 推定: ~30行 | 依存: T-8401, T-1502
+
+- [ ] T-8505: セットアップガイド（プロバイダー未検出時）
+  - 日本語でのわかりやすい案内
+  - Ollama インストール手順
+  - llama-server 起動手順
+  - クラウドAPIキー設定手順
+  - 推定: ~60行 | 依存: T-8501
+
+---
+
+### P6: 既存ModelRouter の統合・廃止
+
+**目標**: 旧 ModelRouter を ProviderChain に統合し、コードの二重管理を解消。
+
+- [ ] T-8601: ModelRouter → ProviderChain マイグレーション
+  - 旧 ModelRouter の main/sidecar 機能を ProviderChain の main/sub に統合
+  - AutoSelectModel(taskType) を ChainCondition.TaskType に移行
+  - KeepAliveAlive() をプロバイダーレベルに移行
+  - SelectModelByMemory() は config/memory.go に残す（プロバイダー非依存）
+  - 推定: ~50行差分 | 依存: T-8401
+
+- [ ] T-8602: 旧ファイル整理
+  - internal/llm/client.go → 廃止（openai_compat.go に統合済み）
+  - internal/llm/sync.go → 廃止（openai_compat.go に統合済み）
+  - internal/llm/streaming.go → 廃止（openai_compat.go に統合済み）
+  - internal/llm/routing.go → 廃止（chain.go + config/memory.go に分離）
+  - 推定: 削除のみ | 依存: T-8601
+
+- [ ] T-8603: 最終テスト + リグレッション確認
+  - go test ./... 全パス
+  - Ollama 接続での既存動作確認
+  - 後方互換（--host, OllamaHost）の動作確認
+  - 推定: テスト実行のみ | 依存: T-8602
+
+---
+
+### マルチプロバイダー依存関係グラフ
+
+```
+P1 (インターフェース抽出):
+  T-8101 → T-8102
+  T-8101 → T-8103 → T-8104
+  T-8101 → T-8105 → T-8106
+  T-8101 → T-8107
+  T-8105, T-8106 → T-8108
+
+P2 (llama-server):
+  T-8103 → T-8201
+  T-8103, T-8104 → T-8202
+  T-8107 → T-8203
+  T-8202, T-8203 → T-8204
+  T-8202 → T-8205
+
+P3 (クラウド):
+  T-8107 → T-8301
+  T-8103, T-8301 → T-8302
+  T-8101 → T-8303
+  T-8104, T-8201, T-8302, T-8303 → T-8304
+  T-8303, T-8304 → T-8305
+
+P4 (フォールバック):
+  T-8101 → T-8401 → T-8402, T-8403, T-8404
+  T-8401, T-8107 → T-8405
+  T-8401〜T-8404 → T-8406
+
+P5 (ゼロコンフィグ):
+  T-8202, T-8304, T-8401 → T-8501
+  T-8501 → T-8502, T-8503, T-8504, T-8505
+
+P6 (統合):
+  T-8401 → T-8601 → T-8602 → T-8603
+```
+
+### マルチプロバイダー推定コード量
+
+| サブフェーズ | 推定行数 | 内容 |
+|---|---|---|
+| P1: インターフェース抽出 | ~800行 | provider.go, openai_compat.go, ollama.go, 差分 |
+| P2: llama-server + 自動検出 | ~380行 | llama_server.go, autodetect.go, CLI, テスト |
+| P3: クラウドプロバイダー | ~690行 | providers.go, anthropic.go, factory.go, apikey.go, テスト |
+| P4: フォールバックチェーン | ~560行 | chain.go, 条件制御, コスト制御, テスト |
+| P5: ゼロコンフィグ + UI | ~270行 | 初期化フロー, 表示, コマンド |
+| P6: 統合・廃止 | ~50行 | マイグレーション（大半は削除） |
+| **合計** | **~2,750行** | （テスト含む） |
+
+### 実装優先順位
+
+```
+★★★ 必須（P1）: インターフェース導入 — これなしに先に進めない
+★★☆ 高  （P2）: llama-server — ローカルLLM利用者の選択肢拡大
+★★☆ 高  （P3）: クラウド対応 — GLM/DeepSeek等の利用
+★☆☆ 中  （P4）: フォールバック — 安定性向上
+★☆☆ 中  （P5）: ゼロコンフィグ — 初心者UX
+☆☆☆ 低  （P6）: 旧コード整理 — 技術的負債解消
+```
+
+---
+
 ## 推定コード量
 
 | パッケージ | 推定行数 | Python版参考行数 |
 |-----------|---------|----------------|
-| cmd/vibe/ | ~200行 | main() 671行 |
-| internal/config/ | ~450行 | Config 420行 + misc |
-| internal/llm/ | ~550行 | OllamaClient 290行 + XML 135行 |
+| cmd/vibe/ | ~250行 | main() 671行 |
+| internal/config/ | ~510行 | Config 420行 + apikey + provider |
+| internal/llm/ | ~1,550行 | OllamaClient 290行 + マルチプロバイダー ~1,200行 |
 | internal/tool/ | ~1,540行 | 各ツール計 ~2,100行 |
 | internal/security/ | ~200行 | PermissionMgr 108行 + misc |
 | internal/session/ | ~360行 | Session 478行 |
-| internal/ui/ | ~580行 | TUI 656行 |
+| internal/ui/ | ~650行 | TUI 656行 + プロバイダーUI |
 | internal/agent/ | ~490行 | Agent 360行 + SubAgent 240行 |
-| **合計** | **~4,370行** | **5,650行** |
-| テスト | ~2,000行 | 6,919行 |
+| **合計** | **~5,550行** | **5,650行** |
+| テスト | ~2,550行 | 6,919行 |
 
 Go 版は Python 版の約77%の行数で同等の機能を実現できる見込み。テストは Go の table-driven テストにより大幅に圧縮される。
 

@@ -15,40 +15,88 @@ const (
 	TruncatePreviewLength = 15000
 )
 
-// ShowToolCall displays a tool call with its parameters
+// ShowToolCall displays a tool call with its parameters (Python版準拠: ⚡ Tool → summary)
 func (t *Terminal) ShowToolCall(toolName string, params json.RawMessage) {
-	t.PrintColoredf(ColorCyan, "🔧 Tool: %s", toolName)
+	// パラメータを解析してサマリーを作成
+	summary := formatToolSummary(toolName, params)
 
-	// Format parameters nicely if not empty
-	if len(params) > 0 {
-		var paramsMap map[string]interface{}
-		if err := json.Unmarshal(params, &paramsMap); err == nil {
-			// Pretty print JSON
-			prettyJSON, _ := json.MarshalIndent(paramsMap, "  ", "  ")
-			t.Printf("  Parameters:\n%s", string(prettyJSON))
-		} else {
-			// Raw JSON if parsing fails
-			t.Printf("  Parameters: %s", string(params))
-		}
+	t.PrintColored(ColorCyan, fmt.Sprintf("  ⚡ %s", toolName))
+	if summary != "" {
+		t.PrintColored(ColorWhite, " → ")
+		t.Print(summary)
 	}
 	t.Println("")
 }
 
-// ShowToolResult displays the result of a tool execution
+// formatToolSummary ツールコールの要約を生成
+func formatToolSummary(toolName string, params json.RawMessage) string {
+	var paramsMap map[string]interface{}
+	if err := json.Unmarshal(params, &paramsMap); err != nil {
+		return ""
+	}
+
+	switch toolName {
+	case "Bash", "bash":
+		if cmd, ok := paramsMap["command"].(string); ok {
+			// 長いコマンドは短縮
+			if len(cmd) > 80 {
+				return cmd[:77] + "..."
+			}
+			return cmd
+		}
+	case "read_file", "ReadFile":
+		if path, ok := paramsMap["path"].(string); ok {
+			return path
+		}
+	case "write_file", "WriteFile":
+		if path, ok := paramsMap["path"].(string); ok {
+			contentLen := 0
+			if content, ok := paramsMap["content"].(string); ok {
+				contentLen = len(content)
+			}
+			return fmt.Sprintf("%s (%d bytes)", path, contentLen)
+		}
+	case "edit_file", "EditFile":
+		if path, ok := paramsMap["path"].(string); ok {
+			return path
+		}
+	case "glob", "Glob":
+		if pattern, ok := paramsMap["pattern"].(string); ok {
+			return pattern
+		}
+	case "grep", "Grep":
+		if pattern, ok := paramsMap["pattern"].(string); ok {
+			if path, ok := paramsMap["path"].(string); ok {
+				return fmt.Sprintf("%s in %s", pattern, path)
+			}
+			return pattern
+		}
+	}
+
+	return ""
+}
+
+// ShowToolResult displays the result of a tool execution (Python版準拠)
 func (t *Terminal) ShowToolResult(result *tool.Result) {
 	if result.IsError {
-		t.PrintColoredf(ColorRed, "❌ Error: %s\n", result.Error)
+		t.PrintColored(ColorRed, fmt.Sprintf("  ┃ Error: %s\n", result.Error))
 		if result.Output != "" {
-			t.Printf("  %s\n", result.Output)
+			// インデント付きで出力
+			for _, line := range strings.Split(result.Output, "\n") {
+				t.Printf("  ┃ %s\n", line)
+			}
 		}
 	} else {
-		// Truncate output if too long
 		output := result.Output
+		if output == "" {
+			return
+		}
+
+		// Truncate if too long
 		if len(output) > MaxToolOutputLength {
 			prefix := output[:TruncatePreviewLength]
 			suffix := output[len(output)-TruncatePreviewLength:]
 
-			// Try to truncate at newline boundaries for cleaner display
 			if lastNewline := strings.LastIndex(prefix, "\n"); lastNewline > 0 {
 				prefix = prefix[:lastNewline]
 			}
@@ -57,16 +105,26 @@ func (t *Terminal) ShowToolResult(result *tool.Result) {
 			}
 
 			omittedChars := len(output) - len(prefix) - len(suffix)
-			t.Printf("✓ Output (%d characters, showing first %d and last %d):\n",
-				len(output), len(prefix), len(suffix))
-			t.Printf("%s\n\n", prefix)
-			t.PrintColored(ColorYellow, fmt.Sprintf("  ... [%d characters omitted] ...\n\n", omittedChars))
-			t.Printf("%s\n", suffix)
+
+			for _, line := range strings.Split(prefix, "\n") {
+				t.Printf("  ┃ %s\n", line)
+			}
+			t.PrintColored(ColorYellow, fmt.Sprintf("  ┃ ... [%d characters omitted] ...\n", omittedChars))
+			for _, line := range strings.Split(suffix, "\n") {
+				t.Printf("  ┃ %s\n", line)
+			}
 		} else {
-			t.Printf("✓ Output:\n%s\n", output)
+			for _, line := range strings.Split(output, "\n") {
+				t.Printf("  ┃ %s\n", line)
+			}
 		}
 	}
-	t.Println("")
+}
+
+// ShowBackgroundTask バックグラウンドタスク開始を表示（Python版準拠）
+func (t *Terminal) ShowBackgroundTask(taskID string) {
+	t.PrintColored(ColorGray, fmt.Sprintf("  ┃ Background task started: %s\n", taskID))
+	t.PrintColored(ColorGray, fmt.Sprintf("  ┃ Use Bash(command='bg_status %s') to check result.\n", taskID))
 }
 
 // ShowToolResult displays the result of a tool execution (standalone function)

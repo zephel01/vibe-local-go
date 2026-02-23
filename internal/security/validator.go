@@ -1,6 +1,7 @@
 package security
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -58,10 +59,18 @@ func (pv *PathValidator) Validate(path string) error {
 		return ErrUnsafePath
 	}
 
-	// Resolve symlinks
+	// Resolve symlinks (handle non-existent paths for write operations)
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			// Path doesn't exist yet — resolve closest existing ancestor
+			resolved, err = resolveNonExistentPathSec(path)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 
 	// Check if within allowed paths
@@ -266,4 +275,31 @@ func NewValidationError(message string) *ValidationError {
 // Error implements error interface
 func (e *ValidationError) Error() string {
 	return e.Message
+}
+
+// resolveNonExistentPathSec resolves a path where the target doesn't exist yet.
+// It walks up to find the closest existing ancestor, resolves symlinks on that,
+// and appends the remaining path components.
+func resolveNonExistentPathSec(path string) (string, error) {
+	current := path
+	var missingParts []string
+
+	for {
+		parent := filepath.Dir(current)
+		if parent == current {
+			// Reached filesystem root
+			return path, nil
+		}
+
+		missingParts = append([]string{filepath.Base(current)}, missingParts...)
+		current = parent
+
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			return filepath.Join(append([]string{resolved}, missingParts...)...), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
 }
