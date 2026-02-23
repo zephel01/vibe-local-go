@@ -5,8 +5,8 @@ dist/
 *.dll
 *.so
 *.dylib
-vibe
-vibe-*
+/vibe
+/vibe-*
 
 # Test binary, built with `go test -c`
 *.test
