@@ -14,7 +14,8 @@ import (
 // Native REST API(/api/v1/models)でモデル管理
 type LMStudioProvider struct {
 	*OpenAICompatProvider
-	baseHost string // http://localhost:1234 形式（/v1 なし）
+	baseHost    string // http://localhost:1234 形式（/v1 なし）
+	loadedModel string // セッション内キャッシュ（ロード済みモデル名）
 }
 
 // NewLMStudioProvider 新しいLM Studioプロバイダーを作成
@@ -170,67 +171,31 @@ func (p *LMStudioProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-
 // ensureModelLoaded 指定モデルがロード済みでなければロードする
 // context.Background() を使用（チャットのタイムアウトに依存しない）
 func (p *LMStudioProvider) ensureModelLoaded(model string) error {
-	// 独立したコンテキストで確認・ロード（チャットのctxタイムアウトに左右されない）
-	checkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	loadedKey, err := p.getLoadedModelKey(checkCtx)
-	if err == nil && loadedKey == model {
-		return nil // すでにロード済み
+	// セッション内キャッシュ：同じモデルは再ロードしない
+	if p.loadedModel == model {
+		return nil
 	}
 
 	// モデルをロード（大きなモデルは時間がかかるため120秒）
-	loadCtx, loadCancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer loadCancel()
-	return p.loadModel(loadCtx, model)
-}
-
-// getLoadedModelKey 現在ロード済みのモデルキーを取得
-// GET /api/v1/models/get
-func (p *LMStudioProvider) getLoadedModelKey(ctx context.Context) (string, error) {
-	url := p.baseHost + "/api/v1/models/get"
-	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	loadCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "vibe-local-go/lmstudio")
-
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GET /api/v1/models/get returned %d", resp.StatusCode)
+	if err := p.loadModel(loadCtx, model); err != nil {
+		return err
 	}
 
-	var result struct {
-		Model *struct {
-			Key string `json:"key"`
-		} `json:"model"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
-	}
-	if result.Model == nil || result.Model.Key == "" {
-		return "", fmt.Errorf("no model currently loaded")
-	}
-	return result.Model.Key, nil
+	// ロード成功をキャッシュ
+	p.loadedModel = model
+	return nil
 }
 
 // loadModel POST /api/v1/models/load でモデルをロード
 func (p *LMStudioProvider) loadModel(ctx context.Context, key string) error {
 	url := p.baseHost + "/api/v1/models/load"
 
-	// LM Studio Native REST API: {"identifier": "publisher/model-name"}
-	// config は省略可能（空だと 400 になる場合がある）
+	// LM Studio /api/v1/models/load: {"model": "publisher/model-name"}
 	body := map[string]interface{}{
-		"identifier": key,
+		"model": key,
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
