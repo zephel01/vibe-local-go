@@ -1143,22 +1143,36 @@ T-000 → T-101 → T-201 → T-203 → T-301 → T-401 → T-501 → T-1101 →
 
 ---
 
-## Phase 12: Plan/Act + Git Checkpoint（Python v1.0 移植）
+## Phase 12: Plan/Act + Git Checkpoint（Python v1.0 移植） ✅ COMPLETE
 
-- [ ] T-12001: Agent に PlanMode フラグ追加
-  - `agent.planMode bool`
-  - planMode=true 時は write_file, edit_file, bash の書込み系を拒否
+- [x] T-12001: Agent に PlanMode フラグ追加
+  - `agent.planMode bool` フィールド追加
+  - SetPlanMode/IsPlanMode メソッド実装
+  - executeSingleTool() でチェック：planMode=true 時は write_file, edit_file, bash を拒否
   - read_file, glob, grep は許可
-  - 変更: internal/agent/agent.go
+  - 初期化：planMode=false（無効）
+  - 変更: internal/agent/agent.go (+30行)
 
-- [ ] T-12002: `/plan` `/execute` コマンド登録
-  - 変更: cmd/vibe/main.go
+- [x] T-12002: `/plan [on|off]` コマンド登録
+  - registerPlanCommands() 実装
+  - `/plan on`：計画モード ON（write操作禁止）
+  - `/plan off`：実行モード ON（すべて実行可能）
+  - `/plan`：現在状態表示
+  - 変更: cmd/vibe/main.go (+40行)
 
-- [ ] T-12003: `internal/git/checkpoint.go` 新規作成
+- [x] T-12003: `internal/git/checkpoint.go` 新規作成
   - CreateCheckpoint() — `git stash push -m "vibe-checkpoint-{timestamp}"`
-  - Rollback() — `git stash pop`
-  - `/undo` コマンドから呼び出し
+  - RollbackLatest() — `git stash pop` で最新に復帰
+  - ListCheckpoints() — vibe-checkpoint 一覧表示
+  - Rollback(checkpointID) — 指定チェックポイントに復帰
+  - IsGitRepo() — Git リポジトリ判定
   - git リポジトリ外では無効化
+  - 実装量：~250行
+
+- [x] T-12005: `/help` に Plan Mode セクション追加
+  - "━━ Plan Mode ━━" セクション追加
+  - /plan [on|off] コマンド説明
+  - 変更: internal/ui/commands.go (+2行)
 
 ---
 
