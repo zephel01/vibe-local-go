@@ -168,7 +168,10 @@ func TestIntegration_SessionResume(t *testing.T) {
 	sess.AddUserMessage("How are you?")
 
 	// セッションを永続化
-	persistMgr := session.NewPersistenceManager(tmpDir)
+	persistMgr, err := session.NewPersistenceManager(tmpDir)
+	if err != nil {
+		t.Fatalf("NewPersistenceManager() failed: %v", err)
+	}
 	if err := persistMgr.SaveSession(sess); err != nil {
 		t.Fatalf("SaveSession() failed: %v", err)
 	}
@@ -197,7 +200,10 @@ func TestIntegration_SessionResume(t *testing.T) {
 // TestIntegration_SessionList セッション一覧取得
 func TestIntegration_SessionList(t *testing.T) {
 	tmpDir := t.TempDir()
-	persistMgr := session.NewPersistenceManager(tmpDir)
+	persistMgr, err := session.NewPersistenceManager(tmpDir)
+	if err != nil {
+		t.Fatalf("NewPersistenceManager() failed: %v", err)
+	}
 
 	// 複数セッションを保存
 	for i := 0; i < 3; i++ {
@@ -282,10 +288,11 @@ func TestIntegration_WriteAndReadFile(t *testing.T) {
 
 	// Write ツールでファイル作成
 	writeTool := tool.NewWriteTool()
-	result, err := writeTool.Execute(context.Background(), map[string]interface{}{
+	writeParams, _ := json.Marshal(map[string]interface{}{
 		"file_path": testFile,
 		"content":   testContent,
 	})
+	result, err := writeTool.Execute(context.Background(), json.RawMessage(writeParams))
 	if err != nil {
 		t.Fatalf("WriteTool.Execute() error: %v", err)
 	}
@@ -300,9 +307,10 @@ func TestIntegration_WriteAndReadFile(t *testing.T) {
 
 	// Read ツールでファイル読み込み
 	readTool := tool.NewReadTool()
-	readResult, err := readTool.Execute(context.Background(), map[string]interface{}{
+	readParams, _ := json.Marshal(map[string]interface{}{
 		"file_path": testFile,
 	})
+	readResult, err := readTool.Execute(context.Background(), json.RawMessage(readParams))
 	if err != nil {
 		t.Fatalf("ReadTool.Execute() error: %v", err)
 	}
