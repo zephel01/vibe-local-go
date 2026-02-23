@@ -48,32 +48,73 @@ vibe-local-goはGo言語で書かれた、オフラインで動作するAIコー
 
   - OpenAI, Anthropic, Google Gemini, DeepSeek, Mistral, Groq, OpenRouter, Z.AI, など計14社対応
 
-### バイナリをダウンロード
+### 方法 1: ワンコマンドインストール（推奨）
 
 ```bash
-# macOS (Apple Silicon)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-arm64 -o /usr/local/bin/vibe
-chmod +x /usr/local/bin/vibe
-
-# macOS (Intel)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-amd64 -o /usr/local/bin/vibe
-chmod +x /usr/local/bin/vibe
-
-# Linux (amd64)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-linux-amd64 -o /usr/local/bin/vibe
-chmod +x /usr/local/bin/vibe
-
-# Linux (arm64)
-curl -L https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-linux-arm64 -o /usr/local/bin/vibe
-chmod +x /usr/local/bin/vibe
+curl -fsSL https://raw.githubusercontent.com/zephel01/vibe-local-go/main/scripts/install-go.sh | bash
 ```
 
-### ソースからビルド
+**特徴**:
+- 自動OS/CPU検出
+- GitHub Release から最新バイナリをダウンロード
+- PATH 自動設定
+- **所要時間**: 5-10秒
+
+### 方法 2: バイナリの手動ダウンロード
+
+[GitHub Releases](https://github.com/zephel01/vibe-local-go/releases) から対応プラットフォーム用バイナリをダウンロード:
+
+```bash
+# ダウンロード（例: macOS Apple Silicon）
+curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-arm64.tar.gz -o vibe.tar.gz
+
+# 解凍
+tar xzf vibe.tar.gz
+
+# PATH に追加
+mv vibe ~/.local/bin/
+chmod +x ~/.local/bin/vibe
+```
+
+**対応プラットフォーム**:
+| OS | Architecture | ファイル |
+|----|--------------|---------|
+| **macOS** | Apple Silicon (arm64) | vibe-darwin-arm64.tar.gz |
+| **macOS** | Intel (amd64) | vibe-darwin-amd64.tar.gz |
+| **Linux** | x86_64 (amd64) | vibe-linux-amd64.tar.gz |
+| **Linux** | ARM64 (aarch64) | vibe-linux-arm64.tar.gz |
+| **Linux** | RISC-V (riscv64) | vibe-linux-riscv64.tar.gz |
+| **Windows** | x86_64 (amd64) | vibe-windows-amd64.zip |
+
+### 方法 3: ソースからビルド
+
+**要件**: Go 1.21+
 
 ```bash
 git clone https://github.com/zephel01/vibe-local-go.git
 cd vibe-local-go
-go build -o vibe ./cmd/vibe
+
+# ローカル環境用ビルド
+make build
+./dist/vibe --version
+
+# または全プラットフォーム用ビルド
+make build-all
+make release
+
+# インストール
+make install
+```
+
+**Makefile コマンド**:
+```bash
+make build         # ローカル環境用ビルド
+make build-all     # 6プラットフォーム対応
+make release       # tar.gz/zip 圧縮
+make test          # ユニットテスト実行
+make lint          # コード検査
+make clean         # ビルド成果物削除
+make help          # ヘルプ表示
 ```
 
 ## クイックスタート

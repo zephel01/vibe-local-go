@@ -8,15 +8,15 @@ Python版 vibe-local v1.0〜v1.3 で追加された機能のうち、Go版に未
 
 | # | 機能 | Python版 | Go版 | 優先度 | 難易度 |
 |---|------|---------|------|--------|--------|
-| 1 | **Agent Skills** | v1.0 | ❌ | 高 | 中 |
-| 2 | **MCP Client** | v1.0 | ❌ | 高 | 高 |
-| 3 | **Plan/Act Mode** | v1.0 | ❌ | 中 | 中 |
-| 4 | **Git Checkpoint** | v1.0 | ❌ | 中 | 低 |
-| 5 | **Auto Test Loop** | v1.0 | ❌ | 中 | 中 |
+| 1 | **Agent Skills** | v1.0 | ✅ | 高 | 中 |
+| 2 | **MCP Client** | v1.0 | ✅ | 高 | 高 |
+| 3 | **Plan/Act Mode** | v1.0 | ✅ | 中 | 中 |
+| 4 | **Git Checkpoint** | v1.0 | ✅ | 中 | 低 |
+| 5 | **Auto Test Loop** | v1.0 | ✅ | 中 | 中 |
 | 6 | **File Watcher** (`/watch`) | v1.1 | ❌ | 低 | 低 |
 | 7 | **Parallel Agents** | v1.1 | ❌ | 低 | 高 |
-| 8 | **ESC 割り込み** | v1.3 | ❌ | 中 | 低 |
-| 9 | **ステータス行** (Thinking... 8s) | v1.3 | ❌ | 中 | 低 |
+| 8 | **ESC 割り込み** | v1.3 | ✅ | 中 | 低 |
+| 9 | **ステータス行** (Thinking... 8s) | v1.3 | ✅ | 中 | 低 |
 | 10 | **Type-ahead 入力** | v1.3 | ❌ | 低 | 中 |
 
 ---

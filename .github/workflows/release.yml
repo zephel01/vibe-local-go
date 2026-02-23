@@ -1,0 +1,166 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { os: darwin, arch: arm64, name: darwin-arm64 }
+          - { os: darwin, arch: amd64, name: darwin-amd64 }
+          - { os: linux, arch: amd64, name: linux-amd64 }
+          - { os: linux, arch: arm64, name: linux-arm64 }
+          - { os: linux, arch: riscv64, name: linux-riscv64 }
+          - { os: windows, arch: amd64, name: windows-amd64 }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build ${{ matrix.name }}
+        run: |
+          mkdir -p dist
+
+          # Determine output filename
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            OUTPUT="dist/vibe-${{ matrix.name }}.exe"
+          else
+            OUTPUT="dist/vibe-${{ matrix.name }}"
+          fi
+
+          # Build binary
+          GOOS=${{ matrix.os }} \
+          GOARCH=${{ matrix.arch }} \
+          go build \
+            -ldflags "-X main.Version=${{ github.ref_name }}" \
+            -o "$OUTPUT" \
+            ./cmd/vibe
+
+          # Make executable (except Windows)
+          if [ "${{ matrix.os }}" != "windows" ]; then
+            chmod +x "$OUTPUT"
+          fi
+
+          # Verify build
+          file "$OUTPUT" || ls -lh "$OUTPUT"
+
+      - name: Compress archive
+        run: |
+          cd dist
+
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            # Windows: Create ZIP
+            zip -q "vibe-${{ matrix.name }}.zip" "vibe-${{ matrix.name }}.exe"
+            rm "vibe-${{ matrix.name }}.exe"
+            ls -lh "vibe-${{ matrix.name }}.zip"
+          else
+            # Unix-like: Create TAR.GZ
+            tar czf "vibe-${{ matrix.name }}.tar.gz" "vibe-${{ matrix.name }}"
+            rm "vibe-${{ matrix.name }}"
+            ls -lh "vibe-${{ matrix.name }}.tar.gz"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: vibe-${{ matrix.name }}
+          path: dist/*
+          retention-days: 7
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: release-artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p final-release
+
+          # Flatten directory structure
+          find release-artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) \
+            -exec cp {} final-release/ \;
+
+          # List files
+          echo "Release artifacts:"
+          ls -lh final-release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: final-release/*
+          draft: false
+          prerelease: false
+          body: |
+            # vibe-local-go ${{ github.ref_name }}
+
+            ## Downloads
+
+            | Platform | Download |
+            |----------|----------|
+            | **macOS (Apple Silicon)** | vibe-darwin-arm64.tar.gz |
+            | **macOS (Intel)** | vibe-darwin-amd64.tar.gz |
+            | **Linux (x86_64)** | vibe-linux-amd64.tar.gz |
+            | **Linux (ARM64)** | vibe-linux-arm64.tar.gz |
+            | **Linux (RISC-V)** | vibe-linux-riscv64.tar.gz |
+            | **Windows** | vibe-windows-amd64.zip |
+
+            ## Installation
+
+            ### Quick Install (Unix-like)
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/zephel01/vibe-local-go/main/scripts/install-go.sh | bash
+            ```
+
+            ### Manual Install
+            1. Download the appropriate binary for your platform
+            2. Extract: `tar xzf vibe-*.tar.gz` or `unzip vibe-*.zip`
+            3. Move to PATH: `mv vibe ~/.local/bin/` or `mv vibe /usr/local/bin/`
+            4. Make executable: `chmod +x ~/.local/bin/vibe` (Unix-like only)
+            5. Verify: `vibe --version`
+
+            ## Checksums
+
+            You can verify the integrity of downloaded files:
+            ```bash
+            sha256sum vibe-*
+            ```
+
+            ## What's New
+
+            See [CHANGELOG.md](https://github.com/zephel01/vibe-local-go/blob/main/CHANGELOG.md) for details.
+
+            ## Support
+
+            - 📖 [Documentation](https://github.com/zephel01/vibe-local-go)
+            - 🐛 [Issues](https://github.com/zephel01/vibe-local-go/issues)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Summary
+        run: |
+          echo "✅ Release ${{ github.ref_name }} created successfully!"
+          echo ""
+          echo "Artifacts:"
+          ls -lh final-release/
