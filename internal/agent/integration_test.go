@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -205,9 +206,9 @@ func TestIntegration_SessionList(t *testing.T) {
 		t.Fatalf("NewPersistenceManager() failed: %v", err)
 	}
 
-	// 複数セッションを保存
+	// 複数セッションを保存（ユニークIDを使用）
 	for i := 0; i < 3; i++ {
-		sess := session.NewSession("", "")
+		sess := session.NewSession(fmt.Sprintf("test-session-%d", i), "")
 		sess.AddUserMessage("Test message")
 		if err := persistMgr.SaveSession(sess); err != nil {
 			t.Fatalf("SaveSession() failed: %v", err)
@@ -237,7 +238,7 @@ func TestIntegration_ToolRegistration(t *testing.T) {
 
 	// 全ツールが登録されているか確認
 	names := registry.Names()
-	expectedTools := []string{"bash", "read", "write", "edit", "glob", "grep"}
+	expectedTools := []string{"bash", "read_file", "write_file", "edit_file", "glob", "grep"}
 	for _, expected := range expectedTools {
 		found := false
 		for _, name := range names {
@@ -289,8 +290,8 @@ func TestIntegration_WriteAndReadFile(t *testing.T) {
 	// Write ツールでファイル作成
 	writeTool := tool.NewWriteTool()
 	writeParams, _ := json.Marshal(map[string]interface{}{
-		"file_path": testFile,
-		"content":   testContent,
+		"path":    testFile,
+		"content": testContent,
 	})
 	result, err := writeTool.Execute(context.Background(), json.RawMessage(writeParams))
 	if err != nil {
@@ -308,7 +309,7 @@ func TestIntegration_WriteAndReadFile(t *testing.T) {
 	// Read ツールでファイル読み込み
 	readTool := tool.NewReadTool()
 	readParams, _ := json.Marshal(map[string]interface{}{
-		"file_path": testFile,
+		"path": testFile,
 	})
 	readResult, err := readTool.Execute(context.Background(), json.RawMessage(readParams))
 	if err != nil {
