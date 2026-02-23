@@ -8,47 +8,47 @@ import (
 	"time"
 )
 
-// ModelRouter モデルルーター
+// ModelRouter モデルルーター（LLMProviderベース）
 type ModelRouter struct {
-	mainClient     *Client
-	sidecarClient  *Client
-	mainModel      string
-	sidecarModel   string
-	useSidecar     bool
-	sidecarLoaded  bool
-	mu             sync.RWMutex
+	mainProvider    LLMProvider
+	sidecarProvider LLMProvider
+	mainModel       string
+	sidecarModel    string
+	useSidecar      bool
+	sidecarLoaded   bool
+	mu              sync.RWMutex
 }
 
 // NewModelRouter 新しいモデルルーターを作成
-func NewModelRouter(mainClient, sidecarClient *Client, mainModel, sidecarModel string) *ModelRouter {
+func NewModelRouter(mainProvider, sidecarProvider LLMProvider, mainModel, sidecarModel string) *ModelRouter {
 	return &ModelRouter{
-		mainClient:    mainClient,
-		sidecarClient: sidecarClient,
-		mainModel:     mainModel,
-		sidecarModel:  sidecarModel,
-		useSidecar:    false,
-		sidecarLoaded: false,
+		mainProvider:    mainProvider,
+		sidecarProvider: sidecarProvider,
+		mainModel:       mainModel,
+		sidecarModel:    sidecarModel,
+		useSidecar:      false,
+		sidecarLoaded:   false,
 	}
 }
 
 // PreloadSidecar サイドカーモデルをプリロード
 func (mr *ModelRouter) PreloadSidecar(ctx context.Context) error {
-	if mr.sidecarClient == nil || mr.sidecarModel == "" {
+	if mr.sidecarProvider == nil || mr.sidecarModel == "" {
 		return nil
 	}
 
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
-	// すでにロード済み
 	if mr.sidecarLoaded {
 		return nil
 	}
 
-	// サイドカーをロード
-	err := mr.sidecarClient.PullModel(ctx, mr.sidecarModel)
-	if err != nil {
-		return fmt.Errorf("サイドカーモデルのロードに失敗: %w", err)
+	// ModelManagerインターフェースを持つプロバイダーのみプル可能
+	if mm, ok := mr.sidecarProvider.(ModelManager); ok {
+		if err := mm.PullModel(ctx, mr.sidecarModel); err != nil {
+			return fmt.Errorf("サイドカーモデルのロードに失敗: %w", err)
+		}
 	}
 
 	mr.sidecarLoaded = true
@@ -80,37 +80,39 @@ func (mr *ModelRouter) GetActiveModel() string {
 	return mr.mainModel
 }
 
-// GetActiveClient アクティブなクライアントを取得
-func (mr *ModelRouter) GetActiveClient() *Client {
+// GetActiveProvider アクティブなプロバイダーを取得
+func (mr *ModelRouter) GetActiveProvider() LLMProvider {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 
 	if mr.useSidecar {
-		return mr.sidecarClient
+		return mr.sidecarProvider
 	}
-	return mr.mainClient
+	return mr.mainProvider
 }
 
 // Chat メイン/サイドカーを自動選択してチャット
 func (mr *ModelRouter) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	// 現在のアクティブなクライアントを使用
-	client := mr.GetActiveClient()
-
-	// モデル名を更新
+	provider := mr.GetActiveProvider()
 	req.Model = mr.GetActiveModel()
-
-	return client.ChatSync(ctx, req)
+	return provider.Chat(ctx, req)
 }
 
 // ChatStream ストリーミングチャット
 func (mr *ModelRouter) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
-	// 現在のアクティブなクライアントを使用
-	client := mr.GetActiveClient()
-
-	// モデル名を更新
+	provider := mr.GetActiveProvider()
 	req.Model = mr.GetActiveModel()
+	return provider.ChatStream(ctx, req)
+}
 
-	return client.ChatStream(ctx, req)
+// CheckHealth アクティブプロバイダーのヘルスチェック
+func (mr *ModelRouter) CheckHealth(ctx context.Context) error {
+	return mr.GetActiveProvider().CheckHealth(ctx)
+}
+
+// Info アクティブプロバイダーの情報
+func (mr *ModelRouter) Info() ProviderInfo {
+	return mr.GetActiveProvider().Info()
 }
 
 // AutoSelectModel タスクに基づいてモデルを自動選択
@@ -118,30 +120,24 @@ func (mr *ModelRouter) AutoSelectModel(taskType string) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
-	// タスクタイプに基づいて選択
 	switch taskType {
 	case "code_generation":
-		// コード生成はメインモデル
 		mr.useSidecar = false
 	case "code_review":
-		// コードレビューはサイドカー（より詳細な分析）
 		if mr.sidecarModel != "" {
 			mr.useSidecar = true
 		} else {
 			mr.useSidecar = false
 		}
 	case "documentation":
-		// ドキュメンテーションはサイドカー
 		if mr.sidecarModel != "" {
 			mr.useSidecar = true
 		} else {
 			mr.useSidecar = false
 		}
 	case "quick_edit":
-		// クイック編集はメインモデル（高速）
 		mr.useSidecar = false
 	default:
-		// デフォルトはメインモデル
 		mr.useSidecar = false
 	}
 }
@@ -151,48 +147,37 @@ func (mr *ModelRouter) SwapModelHot(ctx context.Context, toSidecar bool) error {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
-	// 現在の状態と同じなら何もしない
 	if mr.useSidecar == toSidecar {
 		return nil
 	}
 
-	// 切り替え先のモデルをロード済みチェック
-	if toSidecar && !mr.sidecarLoaded && mr.sidecarClient != nil {
-		// サイドカーをロード
-		err := mr.sidecarClient.PullModel(ctx, mr.sidecarModel)
-		if err != nil {
-			return fmt.Errorf("サイドカーモデルのロードに失敗: %w", err)
+	if toSidecar && !mr.sidecarLoaded && mr.sidecarProvider != nil {
+		if mm, ok := mr.sidecarProvider.(ModelManager); ok {
+			if err := mm.PullModel(ctx, mr.sidecarModel); err != nil {
+				return fmt.Errorf("サイドカーモデルのロードに失敗: %w", err)
+			}
 		}
 		mr.sidecarLoaded = true
 	}
 
-	// 切り替え
 	mr.useSidecar = toSidecar
-
 	return nil
 }
 
 // SelectModelByMemory メモリ量に基づいてモデルを選択
 func (mr *ModelRouter) SelectModelByMemory(memoryGB float64) string {
-	// メモリティアに基づいて推奨モデルを返す
 	switch {
 	case memoryGB >= 256:
-		// Tier A: qwen3:72b
 		return "qwen3:72b"
 	case memoryGB >= 96:
-		// Tier B: qwen3:32b
 		return "qwen3:32b"
 	case memoryGB >= 32:
-		// Tier C上位: qwen3-coder:30b
 		return "qwen3-coder:30b"
 	case memoryGB >= 16:
-		// Tier C中位: qwen3:8b
 		return "qwen3:8b"
 	case memoryGB >= 8:
-		// Tier D: qwen3:4b
 		return "qwen3:4b"
 	default:
-		// Tier E: qwen3:1.7b
 		return "qwen3:1.7b"
 	}
 }
@@ -207,14 +192,11 @@ func (mr *ModelRouter) KeepAliveAlive(ctx context.Context, interval time.Duratio
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// 軽いリクエストを送信してアライブを維持
-			if mr.mainClient != nil {
-				// メインモデルをチェック
-				_ = mr.mainClient.CheckConnection(ctx)
+			if mr.mainProvider != nil {
+				_ = mr.mainProvider.CheckHealth(ctx)
 			}
-			if mr.sidecarClient != nil && mr.sidecarModel != "" {
-				// サイドカーをチェック
-				_ = mr.sidecarClient.CheckConnection(ctx)
+			if mr.sidecarProvider != nil && mr.sidecarModel != "" {
+				_ = mr.sidecarProvider.CheckHealth(ctx)
 			}
 		}
 	}
@@ -225,10 +207,15 @@ func (mr *ModelRouter) GetStatus() RouterStatus {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 
+	activeModel := mr.mainModel
+	if mr.useSidecar {
+		activeModel = mr.sidecarModel
+	}
+
 	return RouterStatus{
 		MainModel:     mr.mainModel,
 		SidecarModel:  mr.sidecarModel,
-		ActiveModel:   mr.GetActiveModel(),
+		ActiveModel:   activeModel,
 		UsingSidecar:  mr.useSidecar,
 		SidecarLoaded: mr.sidecarLoaded,
 	}
@@ -245,7 +232,6 @@ type RouterStatus struct {
 
 // GetModelTier モデルのティアを取得
 func (mr *ModelRouter) GetModelTier(model string) string {
-	// モデル名からティアを判定
 	switch {
 	case strings.Contains(model, "72b"):
 		return "A"

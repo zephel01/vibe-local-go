@@ -26,7 +26,7 @@ const (
 
 // Agent represents the main agent loop
 type Agent struct {
-	client         *llm.Client
+	provider       llm.LLMProvider
 	registry       *tool.Registry
 	permissionMgr  *security.PermissionManager
 	validator      *security.PathValidator
@@ -39,7 +39,7 @@ type Agent struct {
 
 // NewAgent creates a new agent
 func NewAgent(
-	client *llm.Client,
+	provider llm.LLMProvider,
 	registry *tool.Registry,
 	permissionMgr *security.PermissionManager,
 	validator *security.PathValidator,
@@ -48,7 +48,7 @@ func NewAgent(
 	cfg *config.Config,
 ) *Agent {
 	return &Agent{
-		client:        client,
+		provider:      provider,
 		registry:      registry,
 		permissionMgr: permissionMgr,
 		validator:     validator,
@@ -159,8 +159,8 @@ func (a *Agent) callLLM(ctx context.Context, messages []map[string]interface{}, 
 		MaxTokens:   a.config.MaxTokens,
 	}
 
-	// Call LLM
-	resp, err := a.client.ChatSync(ctx, req)
+	// Call LLM via provider
+	resp, err := a.provider.Chat(ctx, req)
 	if err != nil {
 		return nil, err
 	}

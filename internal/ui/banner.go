@@ -18,7 +18,8 @@ type BannerOptions struct {
 	MaxTokens     int
 	MemoryGB      float64
 	AutoApprove   bool
-	OllamaHost    string
+	Provider      string // "ollama", "openrouter", "openai", "anthropic", "google"
+	EngineHost    string // 接続先URL
 	CWD           string
 }
 
@@ -32,8 +33,14 @@ func (t *Terminal) ShowBanner(opts BannerOptions) {
    ╚████╔╝ ██║██████╔╝███████╗     ███████╗╚██████╔╝╚██████╗██║  ██║███████╗
     ╚═══╝  ╚═╝╚═════╝ ╚══════╝     ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
 `)
-	t.PrintColored(ColorGreen, "  🌴 O F F L I N E  A I  C O D I N G  A G E N T 🌴\n")
-	t.PrintColored(ColorGray, fmt.Sprintf("  v%s  // No login • No cloud • Fully OSS • Powered by Ollama\n", opts.Version))
+	// プロバイダーに応じたサブタイトル
+	if opts.Provider == "" || opts.Provider == "ollama" {
+		t.PrintColored(ColorGreen, "  🌴 O F F L I N E  A I  C O D I N G  A G E N T 🌴\n")
+		t.PrintColored(ColorGray, fmt.Sprintf("  v%s  // No login • No cloud • Fully OSS • Powered by Ollama\n", opts.Version))
+	} else {
+		t.PrintColored(ColorGreen, "  🚀 A I  C O D I N G  A G E N T 🚀\n")
+		t.PrintColored(ColorGray, fmt.Sprintf("  v%s  // Powered by %s\n", opts.Version, providerDisplayName(opts.Provider)))
+	}
 
 	// ステータス区切り線
 	t.PrintColored(ColorGray, "  "+strings.Repeat("─", 48)+"\n")
@@ -55,12 +62,14 @@ func (t *Terminal) ShowBanner(opts BannerOptions) {
 	t.Printf("%s\n", modeStr)
 
 	// エンジン
-	ollamaHost := opts.OllamaHost
-	if ollamaHost == "" {
-		ollamaHost = "http://localhost:11434"
+	engineIcon := providerIcon(opts.Provider)
+	engineName := providerDisplayName(opts.Provider)
+	engineHost := opts.EngineHost
+	if engineHost == "" {
+		engineHost = "http://localhost:11434"
 	}
-	t.PrintColored(ColorCyan, "  🦙 Engine ")
-	t.Printf("Ollama (%s)\n", ollamaHost)
+	t.PrintColored(ColorCyan, fmt.Sprintf("  %s Engine ", engineIcon))
+	t.Printf("%s (%s)\n", engineName, engineHost)
 
 	// RAM
 	ctxTokens := opts.ContextWindow
@@ -80,6 +89,58 @@ func (t *Terminal) ShowBanner(opts BannerOptions) {
 
 	// 区切り線
 	t.PrintColored(ColorGray, "  "+strings.Repeat("─", 48)+"\n")
+}
+
+// providerDisplayName プロバイダーの表示名を返す
+func providerDisplayName(provider string) string {
+	names := map[string]string{
+		"ollama":     "Ollama",
+		"openrouter": "OpenRouter",
+		"openai":     "OpenAI",
+		"anthropic":  "Anthropic",
+		"google":     "Google Gemini",
+		"deepseek":   "DeepSeek",
+		"mistral":    "Mistral",
+		"groq":       "Groq",
+		"together":   "Together AI",
+		"fireworks":  "Fireworks AI",
+		"perplexity": "Perplexity",
+		"cohere":     "Cohere",
+		"zai":        "Z.AI (GLM)",
+		"zai-coding": "Z.AI Coding Plan",
+		"zhipu":      "智谱AI (GLM)",
+		"moonshot":   "Moonshot (Kimi)",
+	}
+	if name, ok := names[provider]; ok {
+		return name
+	}
+	return provider
+}
+
+// providerIcon プロバイダーのアイコン絵文字を返す
+func providerIcon(provider string) string {
+	icons := map[string]string{
+		"ollama":     "🦙",
+		"openrouter": "🔀",
+		"openai":     "🤖",
+		"anthropic":  "🧠",
+		"google":     "💎",
+		"deepseek":   "🐋",
+		"mistral":    "🌬️",
+		"groq":       "⚡",
+		"together":   "🤝",
+		"fireworks":  "🎆",
+		"perplexity": "🔍",
+		"cohere":     "🧬",
+		"zai":        "🔮",
+		"zai-coding": "💻",
+		"zhipu":      "🔮",
+		"moonshot":   "🌙",
+	}
+	if icon, ok := icons[provider]; ok {
+		return icon
+	}
+	return "☁️"
 }
 
 // ShowPermissionCheck パーミッション確認ダイアログを表示

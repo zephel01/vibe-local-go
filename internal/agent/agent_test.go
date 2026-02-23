@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/zephel01/vibe-local-go/internal/config"
@@ -17,7 +18,7 @@ func createSimpleTestAgent() *Agent {
 	cfg.Model = "test-model"
 	cfg.OllamaHost = "http://localhost:11434"
 
-	client := llm.NewClient(cfg.OllamaHost)
+	provider := llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
 	registry := tool.NewRegistry()
 	permMgr, _ := security.NewPermissionManager(true)
 	validator := security.NewPathValidator(".")
@@ -25,7 +26,7 @@ func createSimpleTestAgent() *Agent {
 	term := ui.NewTerminal()
 
 	return NewAgent(
-		client,
+		provider,
 		registry,
 		permMgr,
 		validator,
@@ -40,7 +41,7 @@ func TestNewAgent(t *testing.T) {
 	cfg.Model = "test-model"
 	cfg.OllamaHost = "http://localhost:11434"
 
-	client := llm.NewClient(cfg.OllamaHost)
+	provider := llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
 	registry := tool.NewRegistry()
 	permMgr, _ := security.NewPermissionManager(true)
 	validator := security.NewPathValidator(".")
@@ -48,7 +49,7 @@ func TestNewAgent(t *testing.T) {
 	term := ui.NewTerminal()
 
 	agent := NewAgent(
-		client,
+		provider,
 		registry,
 		permMgr,
 		validator,
@@ -61,8 +62,8 @@ func TestNewAgent(t *testing.T) {
 		t.Fatal("NewAgent should return non-nil agent")
 	}
 
-	if agent.client == nil {
-		t.Error("Client should be set")
+	if agent.provider == nil {
+		t.Error("Provider should be set")
 	}
 
 	if agent.registry == nil {
@@ -126,16 +127,16 @@ func TestCompactSession(t *testing.T) {
 	cfg.Model = "test-model"
 	cfg.OllamaHost = "http://localhost:11434"
 
-	client := llm.NewClient(cfg.OllamaHost)
+	provider := llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
 	registry := tool.NewRegistry()
 	permMgr, _ := security.NewPermissionManager(true)
 	validator := security.NewPathValidator(".")
-	
+
 	sess := session.NewSession("test-session", "")
 	term := ui.NewTerminal()
 
 	agent := NewAgent(
-		client,
+		provider,
 		registry,
 		permMgr,
 		validator,
@@ -171,16 +172,16 @@ func TestUpdateSystemPrompt(t *testing.T) {
 	cfg.Model = "test-model"
 	cfg.OllamaHost = "http://localhost:11434"
 
-	client := llm.NewClient(cfg.OllamaHost)
+	provider := llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
 	registry := tool.NewRegistry()
 	permMgr, _ := security.NewPermissionManager(true)
 	validator := security.NewPathValidator(".")
-	
+
 	sess := session.NewSession("test-session", "")
 	term := ui.NewTerminal()
 
 	agent := NewAgent(
-		client,
+		provider,
 		registry,
 		permMgr,
 		validator,
@@ -203,18 +204,18 @@ func TestClear(t *testing.T) {
 	cfg.Model = "test-model"
 	cfg.OllamaHost = "http://localhost:11434"
 
-	client := llm.NewClient(cfg.OllamaHost)
+	provider := llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
 	registry := tool.NewRegistry()
 	permMgr, _ := security.NewPermissionManager(true)
 	validator := security.NewPathValidator(".")
-	
+
 	sess := session.NewSession("test-session", "")
 	sess.AddUserMessage("test")
-	
+
 	term := ui.NewTerminal()
 
 	agent := NewAgent(
-		client,
+		provider,
 		registry,
 		permMgr,
 		validator,

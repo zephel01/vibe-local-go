@@ -7,16 +7,16 @@ import (
 )
 
 func TestNewModelRouter(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
-	if router.mainClient != mainClient {
-		t.Error("mainClient not set correctly")
+	if router.mainProvider == nil {
+		t.Error("mainProvider not set correctly")
 	}
-	if router.sidecarClient != sidecarClient {
-		t.Error("sidecarClient not set correctly")
+	if router.sidecarProvider == nil {
+		t.Error("sidecarProvider not set correctly")
 	}
 	if router.mainModel != "main-model" {
 		t.Error("mainModel not set correctly")
@@ -33,10 +33,10 @@ func TestNewModelRouter(t *testing.T) {
 }
 
 func TestModelRouter_SwitchToMain(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 	router.SwitchToSidecar()
 	router.SwitchToMain()
 
@@ -49,10 +49,10 @@ func TestModelRouter_SwitchToMain(t *testing.T) {
 }
 
 func TestModelRouter_SwitchToSidecar(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 	router.SwitchToSidecar()
 
 	if router.useSidecar != true {
@@ -64,10 +64,10 @@ func TestModelRouter_SwitchToSidecar(t *testing.T) {
 }
 
 func TestModelRouter_GetActiveModel(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	// Test main model
 	model := router.GetActiveModel()
@@ -83,34 +83,34 @@ func TestModelRouter_GetActiveModel(t *testing.T) {
 	}
 }
 
-func TestModelRouter_GetActiveClient(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+func TestModelRouter_GetActiveProvider(t *testing.T) {
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
-	// Test main client
-	client := router.GetActiveClient()
-	if client != mainClient {
-		t.Error("GetActiveClient() returned wrong client")
+	// Test main provider
+	provider := router.GetActiveProvider()
+	if provider != mainProvider {
+		t.Error("GetActiveProvider() returned wrong provider")
 	}
 
-	// Test sidecar client
+	// Test sidecar provider
 	router.SwitchToSidecar()
-	client = router.GetActiveClient()
-	if client != sidecarClient {
-		t.Error("GetActiveClient() returned wrong client")
+	provider = router.GetActiveProvider()
+	if provider != sidecarProvider {
+		t.Error("GetActiveProvider() returned wrong provider")
 	}
 }
 
 func TestModelRouter_AutoSelectModel(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	tests := []struct {
-		taskType  string
+		taskType    string
 		wantSidecar bool
 	}{
 		{"code_generation", false},
@@ -131,8 +131,8 @@ func TestModelRouter_AutoSelectModel(t *testing.T) {
 }
 
 func TestModelRouter_AutoSelectModel_NoSidecar(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	router := NewModelRouter(mainClient, nil, "main-model", "")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	router := NewModelRouter(mainProvider, nil, "main-model", "")
 
 	tests := []string{"code_review", "documentation"}
 	for _, taskType := range tests {
@@ -146,10 +146,10 @@ func TestModelRouter_AutoSelectModel_NoSidecar(t *testing.T) {
 }
 
 func TestModelRouter_SelectModelByMemory(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "")
 
-	router := NewModelRouter(mainClient, sidecarClient, "", "")
+	router := NewModelRouter(mainProvider, sidecarProvider, "", "")
 
 	tests := []struct {
 		name      string
@@ -176,10 +176,10 @@ func TestModelRouter_SelectModelByMemory(t *testing.T) {
 }
 
 func TestModelRouter_GetModelTier(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "")
 
-	router := NewModelRouter(mainClient, sidecarClient, "", "")
+	router := NewModelRouter(mainProvider, sidecarProvider, "", "")
 
 	tests := []struct {
 		model string
@@ -205,10 +205,10 @@ func TestModelRouter_GetModelTier(t *testing.T) {
 }
 
 func TestModelRouter_GetStatus(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
 
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	status := router.GetStatus()
 
@@ -240,8 +240,8 @@ func TestModelRouter_GetStatus(t *testing.T) {
 }
 
 func TestModelRouter_PreloadSidecar_NoSidecar(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	router := NewModelRouter(mainClient, nil, "main-model", "")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	router := NewModelRouter(mainProvider, nil, "main-model", "")
 
 	ctx := context.Background()
 	err := router.PreloadSidecar(ctx)
@@ -251,9 +251,9 @@ func TestModelRouter_PreloadSidecar_NoSidecar(t *testing.T) {
 }
 
 func TestModelRouter_PreloadSidecar_AlreadyLoaded(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	// Mark as loaded
 	router.sidecarLoaded = true
@@ -266,9 +266,9 @@ func TestModelRouter_PreloadSidecar_AlreadyLoaded(t *testing.T) {
 }
 
 func TestModelRouter_SwapModelHot_NoChange(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	ctx := context.Background()
 	err := router.SwapModelHot(ctx, false)
@@ -281,9 +281,9 @@ func TestModelRouter_SwapModelHot_NoChange(t *testing.T) {
 }
 
 func TestModelRouter_KeepAliveAlive_Cancel(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go router.KeepAliveAlive(ctx, 10*time.Millisecond)
@@ -297,9 +297,9 @@ func TestModelRouter_KeepAliveAlive_Cancel(t *testing.T) {
 }
 
 func TestModelRouter_ConcurrentAccess(t *testing.T) {
-	mainClient := NewClient("http://localhost:11434")
-	sidecarClient := NewClient("http://localhost:11434")
-	router := NewModelRouter(mainClient, sidecarClient, "main-model", "sidecar-model")
+	mainProvider := NewOllamaProvider("http://localhost:11434", "main-model")
+	sidecarProvider := NewOllamaProvider("http://localhost:11434", "sidecar-model")
+	router := NewModelRouter(mainProvider, sidecarProvider, "main-model", "sidecar-model")
 
 	done := make(chan bool)
 
@@ -307,7 +307,7 @@ func TestModelRouter_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func() {
 			router.GetActiveModel()
-			router.GetActiveClient()
+			router.GetActiveProvider()
 			router.GetStatus()
 			done <- true
 		}()

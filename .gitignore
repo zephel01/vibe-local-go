@@ -30,6 +30,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.serena/
+.serena
 
 # Config files (local)
 *.local

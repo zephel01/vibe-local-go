@@ -15,16 +15,14 @@ func TestNewClient(t *testing.T) {
 		t.Fatal("expected client to be non-nil")
 	}
 
-	if client.baseURL != baseURL {
-		t.Errorf("expected baseURL %s, got %s", baseURL, client.baseURL)
+	if client.provider == nil {
+		t.Error("expected provider to be non-nil")
 	}
 
-	if client.httpClient == nil {
-		t.Error("expected httpClient to be non-nil")
-	}
-
-	if client.timeout != 300*time.Second {
-		t.Errorf("expected timeout 300s, got %v", client.timeout)
+	// Verify the underlying provider has correct settings
+	info := client.provider.Info()
+	if info.BaseURL != baseURL {
+		t.Errorf("expected baseURL %s, got %s", baseURL, info.BaseURL)
 	}
 }
 
@@ -34,12 +32,9 @@ func TestClient_SetTimeout(t *testing.T) {
 
 	client.SetTimeout(newTimeout)
 
-	if client.httpClient.Timeout != newTimeout {
-		t.Errorf("expected httpClient.Timeout %v, got %v", newTimeout, client.httpClient.Timeout)
-	}
-
-	if client.timeout != newTimeout {
-		t.Errorf("expected timeout %v, got %v", newTimeout, client.timeout)
+	// Verify via the underlying provider's httpClient
+	if client.provider.httpClient.Timeout != newTimeout {
+		t.Errorf("expected httpClient.Timeout %v, got %v", newTimeout, client.provider.httpClient.Timeout)
 	}
 }
 
@@ -369,4 +364,38 @@ func TestDelta_Marshal(t *testing.T) {
 	if unmarshaled.Content != delta.Content {
 		t.Errorf("expected content %s, got %s", delta.Content, unmarshaled.Content)
 	}
+}
+
+func TestNewOllamaProvider(t *testing.T) {
+	provider := NewOllamaProvider("http://localhost:11434", "qwen3:8b")
+
+	if provider == nil {
+		t.Fatal("expected provider to be non-nil")
+	}
+
+	info := provider.Info()
+	if info.Name != "ollama" {
+		t.Errorf("expected name 'ollama', got '%s'", info.Name)
+	}
+	if info.Type != ProviderTypeLocal {
+		t.Errorf("expected type ProviderTypeLocal, got %v", info.Type)
+	}
+	if info.Model != "qwen3:8b" {
+		t.Errorf("expected model 'qwen3:8b', got '%s'", info.Model)
+	}
+	if !info.Features.ModelManagement {
+		t.Error("OllamaProvider should have ModelManagement feature")
+	}
+}
+
+func TestClientGetProvider(t *testing.T) {
+	client := NewClient("http://localhost:11434")
+
+	provider := client.GetProvider()
+	if provider == nil {
+		t.Error("GetProvider() should return non-nil provider")
+	}
+
+	// Provider should implement LLMProvider
+	var _ LLMProvider = provider
 }

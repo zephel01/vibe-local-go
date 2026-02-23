@@ -1,13 +1,9 @@
 package llm
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 )
 
@@ -21,147 +17,13 @@ type StreamEvent struct {
 
 // Token represents a token with metadata
 type Token struct {
-	Text       string
+	Text         string
 	FinishReason string
 }
 
-// ChatStream sends a streaming chat request
+// ChatStream sends a streaming chat request (後方互換ラッパー)
 func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
-	req.Stream = true
-
-	jsonData, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	url := c.baseURL + "/v1/chat/completions"
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Create event channel
-	eventChan := make(chan StreamEvent, 10)
-
-	// Start parsing in goroutine
-	go c.parseSSE(ctx, resp.Body, eventChan)
-
-	return eventChan, nil
-}
-
-// parseSSE parses Server-Sent Events from the response
-func (c *Client) parseSSE(ctx context.Context, body io.ReadCloser, eventChan chan<- StreamEvent) {
-	defer close(eventChan)
-	defer body.Close()
-
-	scanner := bufio.NewScanner(body)
-	buf := make([]byte, 0, 64*1024) // 64KB buffer
-	scanner.Buffer(buf, 1*1024*1024) // Max 1MB line
-
-	var fullText strings.Builder
-	var lastDelta *Delta
-
-	for scanner.Scan() {
-		select {
-		case <-ctx.Done():
-			eventChan <- StreamEvent{Error: ctx.Err()}
-			return
-		default:
-		}
-
-		line := scanner.Text()
-
-		// SSE lines start with "data:"
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-
-		data := strings.TrimPrefix(line, "data: ")
-
-		// "[DONE]" marks the end of stream
-		if data == "[DONE]" {
-			eventChan <- StreamEvent{Done: true}
-			return
-		}
-
-		// Parse JSON data
-		var chunk struct {
-			Choices []Choice `json:"choices"`
-		}
-		if err := json.NewDecoder(strings.NewReader(data)).Decode(&chunk); err != nil {
-			// Log error but continue processing
-			continue
-		}
-
-		if len(chunk.Choices) == 0 {
-			continue
-		}
-
-		delta := chunk.Choices[0].Delta
-		finishReason := chunk.Choices[0].FinishReason
-
-		// Skip if no content or tool calls
-		if delta.Content == "" && len(delta.ToolCalls) == 0 {
-			continue
-		}
-
-		// Append to full text
-		if delta.Content != "" {
-			fullText.WriteString(delta.Content)
-		}
-
-		// Update last delta
-		if lastDelta == nil {
-			lastDelta = &Delta{
-				Role:      delta.Role,
-				Content:   delta.Content,
-				ToolCalls: delta.ToolCalls,
-			}
-		} else {
-			if delta.Content != "" {
-				lastDelta.Content += delta.Content
-			}
-			lastDelta.ToolCalls = append(lastDelta.ToolCalls, delta.ToolCalls...)
-		}
-
-		// Send event
-		eventChan <- StreamEvent{
-			Delta: &Delta{
-				Role:      delta.Role,
-				Content:   delta.Content,
-				ToolCalls: delta.ToolCalls,
-			},
-			Tokens: []Token{
-				{
-					Text:        delta.Content,
-					FinishReason: finishReason,
-				},
-			},
-		}
-
-		// Check for finish reason
-		if finishReason != "" {
-			eventChan <- StreamEvent{Done: true}
-			return
-		}
-	}
-
-	// Check for scanner error
-	if err := scanner.Err(); err != nil {
-		eventChan <- StreamEvent{Error: fmt.Errorf("SSE scanner error: %w", err)}
-	}
+	return c.provider.ChatStream(ctx, req)
 }
 
 // CollectTokens collects all tokens from a stream (for testing)

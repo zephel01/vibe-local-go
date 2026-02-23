@@ -32,8 +32,15 @@ type Config struct {
 	Temperature   float64
 	ContextWindow int
 
+	// Provider selection
+	Provider string // "ollama" (default), "openrouter", "openai", "anthropic", "google", etc.
+
 	// Ollama settings
 	OllamaHost string
+
+	// Cloud provider API keys (provider key → API key)
+	CloudAPIKeys map[string]string
+
 
 	// Session settings
 	SessionID     string
@@ -71,10 +78,12 @@ func DefaultConfig() *Config {
 		Model:         "",
 		SidecarModel:  "",
 		AutoModel:     true,
+		Provider:      "ollama",
 		MaxTokens:     DefaultMaxTokens,
 		Temperature:   DefaultTemperature,
 		ContextWindow: DefaultContextWindow,
 		OllamaHost:    DefaultOllamaHost,
+		CloudAPIKeys:  make(map[string]string),
 		VenvDir:       ".venv",
 		OS:            detectOS(),
 		Arch:          detectArch(),
