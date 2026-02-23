@@ -1214,3 +1214,4 @@ T-000 → T-101 → T-201 → T-203 → T-301 → T-401 → T-501 → T-1101 →
 | F1 | File Watcher (`/watch`) | ⬜ | Python v1.1 |
 | F2 | Parallel Agents | ⬜ | Python v1.1 (難易度高) |
 | F3 | Type-ahead 入力 | ⬜ | Python v1.3 |
+| F4 | Python venv 自動セットアップ | ⬜ | Bash実行時にModuleNotFoundErrorを検出し、venv作成+pip installを自動実行 |
