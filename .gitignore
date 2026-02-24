@@ -39,3 +39,14 @@ Thumbs.db
 
 # Scripts
 /scripts/install.*
+
+# Development Memos (internal only, not for GitHub)
+docs/task.md
+docs/plan.md
+docs/analysis.md
+docs/FIX_SUMMARY.md
+docs/CLAUDE.md_SPEC.md
+docs/IMPLEMENTATION_VERIFY_LocalProviders.md
+docs/INDEX.md
+docs/context-budget-design.md
+docs/ROADMAP.md
