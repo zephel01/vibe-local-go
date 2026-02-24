@@ -29,7 +29,7 @@ import (
 
 // Version はビルド時に ldflags で上書き可能:
 //   go build -ldflags "-X main.Version=1.1.0"
-var Version = "1.1.0"
+var Version = "1.1.1"
 
 // ShutdownManager handles graceful shutdown
 type ShutdownManager struct {

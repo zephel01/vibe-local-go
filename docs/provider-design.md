@@ -40,19 +40,27 @@ vibe-local-go を Ollama 専用から、複数の LLM バックエンドに対�
 
 ---
 
-## 現状のアーキテクチャと問題点
+## 現在のアーキテクチャ（v1.1.0 実装済み）
 
 ```
-現在:
-Agent → *llm.Client (Ollama専用・具象型) → Ollama HTTP API
+現在 (v1.1.0):
+Agent → LLMProvider (インターフェース) → ProviderChain → 複数プロバイダー
 
-問題:
-1. Agent が *llm.Client に直接依存（インターフェースなし）
-2. Ollama 固有の API (CheckModel, PullModel) がクライアントに混在
-3. Config が OllamaHost しか持たない
-4. main.go が Ollama 前提のフロー (checkOllamaConnection, pullModelIfNeeded)
-5. エラーメッセージが "Ollama error" ハードコード
+フロー:
+1. main.go: createProviderWithChain() でプロバイダー初期化
+2. --provider 指定あり → createProvider() + buildChainWithFallbacks()
+3. --provider 未指定  → AutoDetect() → 自動チェーン構築
+4. Agent は LLMProvider インターフェースのみ知る（具象型に依存しない）
+5. ProviderChain が FallbackCondition に基づいてフォールバック制御
 ```
+
+### 解決済みの課題（旧アーキテクチャからの改善）
+
+1. ✅ Agent が `LLMProvider` インターフェースに依存（具象型依存を排除）
+2. ✅ Ollama 固有機能は `ModelManager` 拡張インターフェースに分離
+3. ✅ Config が複数プロバイダー対応（`Provider`, `CloudAPIKeys` フィールド）
+4. ✅ main.go がゼロコンフィグ対応（`createProviderWithChain` で自動検出）
+5. ✅ エラーメッセージが `ErrorMessage()` で動的生成（プロバイダー名付き）
 
 ---
 
@@ -106,33 +114,26 @@ Agent → *llm.Client (Ollama専用・具象型) → Ollama HTTP API
 
 ## インターフェース設計
 
-### コアインターフェース
+### コアインターフェース（実装済み: `internal/llm/provider.go`）
 
 ```go
 package llm
 
 // LLMProvider - 全プロバイダーが実装する最小インターフェース
 type LLMProvider interface {
-    // Chat 同期チャットリクエスト（ツール使用時）
     Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
-
-    // ChatStream ストリーミングチャット（対話時）
     ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error)
-
-    // CheckHealth プロバイダーの生存確認
     CheckHealth(ctx context.Context) error
-
-    // Info プロバイダー情報
     Info() ProviderInfo
 }
 
 // ProviderInfo プロバイダーのメタ情報
 type ProviderInfo struct {
-    Name        string       // "ollama", "llama-server", "openai", "anthropic", etc.
-    Type        ProviderType // Local or Cloud
-    BaseURL     string       // 接続先
-    Model       string       // 使用中のモデル名
-    Features    Features     // 対応機能フラグ
+    Name     string       // "ollama", "llama-server", "openai", "anthropic", etc.
+    Type     ProviderType // Local or Cloud
+    BaseURL  string       // 接続先
+    Model    string       // 使用中のモデル名
+    Features Features     // 対応機能フラグ
 }
 
 type ProviderType string
@@ -147,38 +148,29 @@ type Features struct {
     NativeFunctionCalling bool // true: OpenAI式tool_calls対応
     ModelManagement       bool // true: モデルDL/一覧が可能
     Streaming             bool // true: SSEストリーミング対応
-    Vision                bool // true: 画像入力対応
-    ContextWindowReport   bool // true: モデルのctx sizeを返せる
 }
 ```
 
-### 拡張インターフェース（Optional）
+### 拡張インターフェース（実装済み: `internal/llm/provider.go`）
 
 ```go
 // ModelManager モデル管理ができるプロバイダー用（Ollama等）
 type ModelManager interface {
-    ListModels(ctx context.Context) ([]ModelInfo, error)
+    ListModels(ctx context.Context) ([]string, error)
     PullModel(ctx context.Context, name string) error
-    SearchModels(ctx context.Context, query string) ([]ModelInfo, error)
-    DeleteModel(ctx context.Context, name string) error
+    CheckModel(ctx context.Context, name string) (bool, error)
 }
 
-// ModelInfo モデル情報
-type ModelInfo struct {
-    Name         string
-    Size         int64   // バイト
-    ContextSize  int     // コンテキストウィンドウ
-    Family       string  // "qwen3", "llama3", etc.
-    ParameterSize string // "8b", "32b", etc.
-    Quantization string  // "Q4_K_M", "Q8_0", etc.
-}
-
-// ContextReporter コンテキストウィンドウ情報を返せるプロバイダー用
-type ContextReporter interface {
-    GetContextWindow(ctx context.Context, model string) (int, error)
-    GetTokenUsage(ctx context.Context) (*Usage, error)
+// ModelSwitcher モデルを動的に切り替え可能なプロバイダー用
+type ModelSwitcher interface {
+    GetModel() string
+    SetModel(model string)
 }
 ```
+
+> **設計メモ**: 当初予定していた `ContextReporter` インターフェースは未実装。
+> `Vision`, `ContextWindowReport` フィールドも Features から除外。
+> 必要に応じて将来追加可能。
 
 ---
 
@@ -296,25 +288,12 @@ type LlamaServerProvider struct {
 
 ---
 
-## プロバイダーチェーン（フォールバック）
+## プロバイダーチェーン（フォールバック）— 実装済み
 
-### 設計
+### 設計（実装: `internal/llm/chain.go`）
 
 ```go
-// ProviderChain フォールバック付きプロバイダーチェーン
-type ProviderChain struct {
-    providers []ChainEntry
-    current   int
-    mu        sync.RWMutex
-}
-
-type ChainEntry struct {
-    Provider  LLMProvider
-    Role      ChainRole    // Main, Sub, Fallback
-    Priority  int          // 低い値が優先
-    Condition *ChainCondition // 切り替え条件
-}
-
+// ChainRole プロバイダーチェーンでの役割
 type ChainRole string
 
 const (
@@ -323,15 +302,71 @@ const (
     RoleFallback ChainRole = "fallback"  // フォールバック（クラウド等）
 )
 
-type ChainCondition struct {
-    OnError     bool   // エラー時に切り替え
-    OnTimeout   bool   // タイムアウト時に切り替え
-    OnOverload  bool   // コンテキスト超過時に切り替え（大きいctxのモデルへ）
-    TaskType    string // 特定タスク時のみ切り替え（code_review→大モデル等）
+// ChainEntry チェーンエントリ
+type ChainEntry struct {
+    Provider LLMProvider
+    Role     ChainRole
+    Priority int // 低い値が優先
+}
+
+// FallbackCallback フォールバック発生時のコールバック
+type FallbackCallback func(fromProvider, toProvider string, classification ErrorClassification)
+
+// ProviderChain フォールバック付きプロバイダーチェーン
+type ProviderChain struct {
+    entries      []ChainEntry
+    current      int
+    lastError    error
+    failureCount map[int]int        // プロバイダーごとの失敗カウント
+    failureTime  map[int]time.Time  // プロバイダーごとの最後の失敗時刻
+    fallbackOn   bool               // フォールバック有効化フラグ
+    maxRetries   int
+    condition    FallbackCondition   // フォールバック条件（fallback_condition.go）
+    onFallback   FallbackCallback    // UI通知コールバック
+    mu           sync.RWMutex
 }
 ```
 
-### フォールバック動作
+#### 主要メソッド
+
+| メソッド | 説明 |
+|---|---|
+| `NewProviderChain(providers...)` | チェーン作成。最初=Main、2番目=Sub、以降=Fallback |
+| `AddProvider(provider, role)` | プロバイダーを動的追加 |
+| `SwitchTo(index)` | 指定インデックスに手動切り替え（`/chain` コマンドで使用） |
+| `SetFallbackCondition(cond)` | フォールバック条件を設定 |
+| `SetFallbackCallback(cb)` | フォールバック発生時のUI通知コールバックを設定 |
+| `EnableFallback(bool)` | フォールバック機能の有効/無効切り替え |
+| `GetEntries()` | チェーン内全エントリ一覧 |
+| `GetFailureCount(index)` | プロバイダーごとの失敗回数取得 |
+
+### エラー分類（実装: `internal/llm/fallback_condition.go`）
+
+```go
+// FallbackCondition フォールバック条件
+type FallbackCondition struct {
+    OnNetworkError   bool          // 接続不可エラー時にフォールバック
+    OnTimeout        bool          // タイムアウト時にフォールバック
+    OnServerError    bool          // 5xx エラー時にフォールバック
+    OnContextWindow  bool          // コンテキスト超過時にフォールバック
+    OnRateLimit      bool          // レート制限時にフォールバック
+    MaxRetries       int
+    RetryDelay       time.Duration
+}
+
+// ErrorClassification: network, timeout, server_error, client_error,
+//                      context_window, rate_limit, unknown
+
+// ClassifyError(err) → ErrorClassification
+// EvaluateFallback(err, condition) → bool
+// GetRetryDelay(classification, attempt) → time.Duration  (指数バックオフ対応)
+// ErrorMessage(classification, from, to) → string         (UI表示用メッセージ生成)
+```
+
+デフォルト条件: ネットワーク/タイムアウト/サーバーエラー/コンテキスト超過でフォールバック。
+レート制限はリトライで対応（フォールバックしない）。4xx クライアントエラーもフォールバックしない。
+
+### フォールバック動作フロー
 
 ```
 ユーザーリクエスト
@@ -339,92 +374,86 @@ type ChainCondition struct {
     ▼
 [Main: Ollama qwen3:8b (ローカル)]
     │ 成功 → 応答返却
-    │ 失敗 ↓
+    │ 失敗 → ClassifyError() で分類
+    │        → EvaluateFallback() で判定
+    │        → GetRetryDelay() で待機
+    │        → FallbackCallback で UI 通知
     ▼
-[Sub: llama-server codestral:22b (ローカル別モデル)]
-    │ 成功 → 応答返却 + "⚠ サブモデルで応答" 表示
+[Sub: llama-server (ローカル別モデル)]
+    │ 成功 → 応答返却
     │ 失敗 ↓
     ▼
 [Fallback: OpenAI gpt-4o (クラウド)]
-    │ 成功 → 応答返却 + "☁ クラウドフォールバック" 表示
+    │ 成功 → 応答返却
     │ 失敗 ↓
     ▼
-エラー表示（全プロバイダー失敗）
+エラー表示「all providers failed, last error: ...」
+```
+
+### /chain コマンド（実装: `cmd/vibe/main.go` `registerChainCommands()`）
+
+```
+/chain              チェーン状態を表示（各プロバイダーの名前・ロール・失敗数）
+/chain <番号>       指定番号のプロバイダーに手動切り替え
 ```
 
 ---
 
-## 自動検出（ゼロコンフィグ対応）
+## 自動検出（ゼロコンフィグ対応）— 実装済み
 
-初心者向け：何も設定しなくても、ローカルで動いているLLMサーバーを自動検出。
+`internal/llm/autodetect.go` に実装。`--provider` 未指定時に `createProviderWithChain()` から呼ばれる。
 
-### 検出順序
+### 検出対象と優先順位
+
+| 優先度 | プロバイダー | ポート | エンドポイント | モデルパーサー |
+|---|---|---|---|---|
+| 0 | Ollama | 11434 | `/api/tags` | `parseOllamaModels` |
+| 1 | llama-server | 8080 | `/v1/models` | `parseLlamaServerModels` |
+| 2 | LM Studio | 1234 | `/api/v1/models` (Native REST API 0.4.0+) | `parseLMStudioNativeModels` |
+| 3 | LiteLLM | 4000 | `/v1/models` | `parseLlamaServerModels` |
+| 4 | カスタム | (任意) | `/v1/models` | `parseLlamaServerModels` |
+
+- 全プロバイダーを **goroutine で並行チェック**（タイムアウト 2秒）
+- カスタムプロバイダーは環境変数 `VIBE_LLM_URL` で指定
+- 検出結果は優先度順にソートして返却
+- 各プロバイダーの `DetectedProvider` にモデル一覧も含む
+
+### DetectedProvider 構造体
 
 ```go
-// AutoDetect ローカルで起動中のLLMサーバーを自動検出
-func AutoDetect(ctx context.Context) []DetectedProvider {
-    var detected []DetectedProvider
-
-    // 並行チェック（タイムアウト2秒）
-    checks := []struct {
-        name    string
-        url     string
-        check   func(ctx context.Context, url string) bool
-    }{
-        // 1. Ollama (デフォルトポート 11434)
-        {"ollama", "http://localhost:11434", checkOllama},
-
-        // 2. llama-server / llama.app (デフォルトポート 8080)
-        {"llama-server", "http://localhost:8080", checkOpenAICompat},
-
-        // 3. LM Studio (デフォルトポート 1234)
-        {"lm-studio", "http://localhost:1234", checkOpenAICompat},
-
-        // 4. LocalAI (デフォルトポート 8080)
-        // llama-serverと競合するが、/models レスポンスで判別
-        {"localai", "http://localhost:8080", checkLocalAI},
-
-        // 5. カスタムポート (環境変数 VIBE_LLM_URL)
-        {"custom", os.Getenv("VIBE_LLM_URL"), checkOpenAICompat},
-    }
-
-    // 全ポート並行チェック
-    for _, c := range checks {
-        if c.url != "" && c.check(ctx, c.url) {
-            detected = append(detected, DetectedProvider{
-                Name: c.name,
-                URL:  c.url,
-            })
-        }
-    }
-
-    return detected
-}
-
-func checkOllama(ctx context.Context, url string) bool {
-    // GET /api/tags が 200 返すか
-    resp, err := http.Get(url + "/api/tags")
-    return err == nil && resp.StatusCode == 200
-}
-
-func checkOpenAICompat(ctx context.Context, url string) bool {
-    // GET /v1/models が 200 返すか
-    resp, err := http.Get(url + "/v1/models")
-    return err == nil && resp.StatusCode == 200
+type DetectedProvider struct {
+    Name     string     // "ollama", "llama-server", "lm-studio", "litellm", "custom"
+    URL      string     // "http://localhost:11434"
+    Models   []string   // ["qwen3:8b", "mistral:7b"]
+    Health   bool       // 検出成功フラグ
+    Features Features   // 対応機能フラグ
+    BasePort int        // 検出ポート
 }
 ```
 
-### 検出結果の表示（初心者向け）
+### ゼロコンフィグの全体フロー（`createProviderWithChain`）
 
 ```
-🔍 LLMサーバーを検出中...
-  ✓ Ollama (localhost:11434) - qwen3:8b, qwen3:32b が利用可能
-  ✓ llama-server (localhost:8080) - モデルロード済み
-  ✗ LM Studio (localhost:1234) - 未検出
-
-→ Ollama (qwen3:8b) をメインで使用します
-→ llama-server をサブで使用します
+vibe 起動（--provider 未指定）
+    │
+    ▼
+AutoDetect() → goroutine で並行チェック (2秒タイムアウト)
+    │
+    ├─ 検出あり → best = detected[0] をメインに設定
+    │             他の detected をサブとして AddProvider
+    │             環境変数からクラウドフォールバック追加
+    │             → ProviderChain 返却
+    │
+    └─ 検出なし → detectCloudFromEnv() でクラウドAPIキーをチェック
+                  ├─ APIキーあり → クラウドプロバイダー返却
+                  └─ APIキーなし → デフォルト Ollama で試行
 ```
+
+### 補助関数
+
+- `DetectProvidersByPort(ctx, ports)` — カスタムポートでの検出（設定変更時用）
+- `(*DetectedProvider).IsReachable(ctx)` — 再到達チェック（1秒タイムアウト）
+- `(*DetectedProvider).ToProviderInfo(model)` — `ProviderInfo` への変換
 
 ---
 
@@ -541,7 +570,10 @@ VIBE_PROVIDER=ollama                  # デフォルトプロバイダー
 
 ---
 
-## Anthropic プロバイダーの変換仕様
+## Anthropic プロバイダーの変換仕様（未実装 — 設計メモ）
+
+> **注**: 現在 Anthropic は OpenRouter 等の OpenAI 互換ゲートウェイ経由で利用可能。
+> ネイティブ Messages API の直接対応は将来の課題。
 
 Anthropic だけ OpenAI 互換ではないため、リクエスト/レスポンスの変換が必要。
 
@@ -613,56 +645,83 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req *ChatRequest) (*Cha
 
 ---
 
-## 実装フェーズ
+## ModelRouter（メイン/サイドカーモデル切り替え）— 実装済み
 
-### Phase 1: インターフェース抽出（破壊的変更なし）
+`internal/llm/routing.go` に実装。同一プロバイダー内でメインモデルとサイドカーモデルを切り替える。
 
-**目標**: 既存動作を壊さずにインターフェースを導入
+```go
+type ModelRouter struct {
+    mainProvider    LLMProvider
+    sidecarProvider LLMProvider
+    mainModel       string    // e.g. "qwen3:8b"
+    sidecarModel    string    // e.g. "qwen3:32b"
+    useSidecar      bool
+}
+```
 
-1. `LLMProvider` インターフェース定義
-2. `OpenAICompatProvider` 実装（既存 `Client` コードを移動）
-3. `OllamaProvider` 実装（`OpenAICompatProvider` 埋め込み + モデル管理）
-4. `Agent.client *llm.Client` → `Agent.provider llm.LLMProvider` に変更
-5. `main.go` で `OllamaProvider` を生成して渡す
-6. 既存テスト全パス確認
+- `LLMProvider` インターフェースを実装（Agent から透過的に使える）
+- `AutoSelectModel(taskType)` — タスク種別に応じて自動選択（code_generation → main、code_review → sidecar）
+- `SelectModelByMemory(memoryGB)` — メモリ量に応じた推奨モデル選択
+- `SwapModelHot(ctx, toSidecar)` — 実行時ホットスワップ
+- `KeepAliveAlive(ctx, interval)` — 定期的にヘルスチェックしてモデルをアライブ状態に維持
+- `GetModelTier(model)` — モデルのパラメータ数に基づくティア判定（A〜E）
+
+> **注**: ProviderChain はプロバイダー間のフォールバック、ModelRouter は同一プロバイダー内のモデル切り替え。
+> 両者は独立した機能で、組み合わせて使用可能。
+
+---
+
+## 実装フェーズと進捗
+
+### Phase 1: インターフェース抽出 ✅ 完了
+
+- `LLMProvider` インターフェース定義 (`provider.go`)
+- `OpenAICompatProvider` 実装 (`ollama.go` — Ollama = OpenAI互換ベース)
+- `ModelManager`, `ModelSwitcher` 拡張インターフェース
+- `Agent.provider llm.LLMProvider` に変更済み
+- 既存テスト全パス
 
 ファイル構成:
 ```
 internal/llm/
-  provider.go           # LLMProvider インターフェース定義
-  openai_compat.go      # OpenAI互換ベース実装（旧 client.go + sync.go + streaming.go）
-  ollama.go             # Ollama固有機能（旧 client.go のモデル管理部分）
-  chain.go              # ProviderChain
-  xml_fallback.go       # (既存)
+  provider.go           # LLMProvider インターフェース + Features + ModelManager
+  ollama.go             # Ollama プロバイダー（OpenAI互換 + モデル管理）
+  chain.go              # ProviderChain（フォールバック付き）
+  fallback_condition.go # エラー分類 + フォールバック条件
+  autodetect.go         # ゼロコンフィグ自動検出
+  routing.go            # ModelRouter（メイン/サイドカー切り替え）
+  xml_fallback.go       # XMLフォールバック（小モデル用）
+  sync.go               # 同期チャット
+  streaming.go          # ストリーミングチャット
 ```
 
-### Phase 2: llama-server / llama.app 対応
+### Phase 2: llama-server / LM Studio 対応 ✅ 完了
 
-1. `LlamaServerProvider` 実装（= `OpenAICompatProvider` そのまま）
-2. 自動検出ロジック (`autodetect.go`)
-3. `--provider` / `--url` CLIフラグ追加
-4. `config.json` のプロバイダー設定対応
+- `--provider`, `--url` CLIフラグ対応
+- `AutoDetect()` で llama-server (8080), LM Studio (1234), LiteLLM (4000) を自動検出
+- LM Studio Native REST API (0.4.0+) の `/api/v1/models` 対応
 
-### Phase 3: クラウドプロバイダー対応
+### Phase 3: クラウドプロバイダー対応 ✅ 部分完了
 
-1. APIキー管理（環境変数 + config.json、`${ENV_VAR}` 展開）
-2. OpenAI / DeepSeek / GLM / Groq / Together / OpenRouter
-   → 全て `OpenAICompatProvider` の URL + APIKey 差し替えで対応
-3. `AnthropicProvider` 実装（独自変換）
+- OpenAI互換クラウド対応（OpenAI, DeepSeek, OpenRouter 等）
+- 環境変数からの APIキー自動検出 (`CloudAPIKeys` マップ)
+- `NewCloudProvider()`, `GetCloudProviderDef()` でクラウドプロバイダー作成
+- **未実装**: Anthropic ネイティブ API（独自変換レイヤー）
 
-### Phase 4: フォールバックチェーン
+### Phase 4: フォールバックチェーン ✅ 完了
 
-1. `ProviderChain` 実装
-2. エラー時の自動フォールバック
-3. コンテキスト超過時の大モデルへの切り替え
-4. チェーン状態のUI表示（右パネル / ステータスバー）
+- `ProviderChain` 実装（`chain.go`）
+- `FallbackCondition` によるエラー分類ベースの自動フォールバック
+- `ClassifyError()` / `EvaluateFallback()` / `GetRetryDelay()` / `ErrorMessage()`
+- `/chain` コマンドで状態表示・手動切り替え
+- `FallbackCallback` による UI 通知
 
-### Phase 5: 自動検出＋ゼロコンフィグ
+### Phase 5: ゼロコンフィグ ✅ 完了
 
-1. ローカルサーバー並行検出
-2. 環境変数からクラウドプロバイダー自動設定
-3. 検出結果からの自動チェーン構築
-4. 初心者向けセットアップウィザード
+- `AutoDetect()` による goroutine 並行検出
+- 検出結果からの自動チェーン構築 (`createProviderWithChain`)
+- 環境変数クラウドフォールバック自動追加 (`addCloudFallbackToChain`)
+- **未実装**: セットアップウィザード（初心者向け対話形式設定）
 
 ---
 
@@ -699,45 +758,24 @@ config.json の "OllamaHost" も引き続き動作。
 
 ---
 
-## Agent 側の変更点
+## Agent 側の変更点（実装済み）
 
-### Before
-
-```go
-type Agent struct {
-    client *llm.Client    // Ollama直接依存
-    ...
-}
-
-func NewAgent(client *llm.Client, ...) *Agent {
-    return &Agent{client: client, ...}
-}
-```
-
-### After
+Agent は `llm.LLMProvider` インターフェースのみに依存。
+具象型（Ollama, ProviderChain 等）を知らない。
 
 ```go
 type Agent struct {
-    provider llm.LLMProvider  // インターフェース依存
+    provider llm.LLMProvider  // インターフェース依存（具象型に依存しない）
     ...
 }
 
 func NewAgent(provider llm.LLMProvider, ...) *Agent {
     return &Agent{provider: provider, ...}
 }
-
-// callLLM は変更なし（ChatRequest/ChatResponse は共通型）
-func (a *Agent) callLLM(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (*llm.ChatResponse, error) {
-    req := &llm.ChatRequest{
-        Model:       a.config.Model,
-        Messages:    messages,
-        Tools:       tools,
-        Temperature: a.config.Temperature,
-        MaxTokens:   a.config.MaxTokens,
-    }
-    return a.provider.Chat(ctx, req)  // client.ChatSync → provider.Chat
-}
 ```
+
+`main.go` 側で `createProviderWithChain()` が返す `LLMProvider`（単一プロバイダーまたは ProviderChain）を Agent に渡す。
+Agent からは単一プロバイダーもチェーンも同じインターフェースで扱える。
 
 ---
 
@@ -793,29 +831,19 @@ vibe --provider openrouter --api-key $OPENROUTER_API_KEY --model anthropic/claud
 
 ---
 
-## コスト・レート制御（クラウド用）
+## コスト・レート制御（クラウド用）— 部分実装
 
-```go
-// CloudLimiter クラウドプロバイダーのコスト制御
-type CloudLimiter struct {
-    MaxRequestsPerMinute int     // レートリミット
-    MaxTokensPerDay      int     // 1日あたり最大トークン
-    MaxCostPerDay        float64 // 1日あたり最大コスト (USD)
-    WarnThreshold        float64 // 警告しきい値 (0.0-1.0)
-}
+### 実装済み
 
-// デフォルト: フォールバックでの想定外課金を防ぐ
-var DefaultCloudLimiter = CloudLimiter{
-    MaxRequestsPerMinute: 10,
-    MaxTokensPerDay:      100000,
-    MaxCostPerDay:        5.0,     // $5/day
-    WarnThreshold:        0.8,     // 80%で警告
-}
-```
+- **レート制限検出**: `ClassifyError()` が `ErrorClassRateLimit` を検出（`"rate limit"`, `"too many requests"`, `"quota"` を含むエラー）
+- **指数バックオフ**: `GetRetryDelay(ErrorClassRateLimit, attempt)` で 1s → 2s → 4s... (最大30s) のバックオフ
+- **フォールバック通知**: `FallbackCallback` + `ErrorMessage()` で UI にフォールバック理由を表示
 
-初心者が知らずにクラウドで大量課金されるのを防ぐ：
-- フォールバック発動時に「☁ クラウドモデルで応答します（APIコスト発生）」と表示
-- 日次上限到達で自動停止 + メッセージ表示
+### 未実装（将来の課題）
+
+- `CloudLimiter`（1日あたりのトークン数・コスト上限管理）
+- 日次コスト追跡と自動停止
+- クラウドフォールバック時のコスト警告表示
 
 ---
 
@@ -823,20 +851,28 @@ var DefaultCloudLimiter = CloudLimiter{
 
 ### 設計のポイント
 
-1. **OpenAI互換がベース**: 1つの実装で12+ プロバイダーをカバー
-2. **Anthropicだけ特別対応**: 変換レイヤーで吸収
-3. **段階的実装**: Phase 1 で既存コードを壊さずインターフェース導入
-4. **自動検出優先**: 初心者は何も設定しなくてよい
-5. **フォールバックチェーン**: ローカル失敗 → 別ローカル → クラウド
-6. **コスト保護**: クラウドフォールバックの意図しない課金を防止
+1. **OpenAI互換がベース**: 1つの実装で Ollama / llama-server / LM Studio / LiteLLM / クラウドをカバー
+2. **LLMProvider インターフェース**: Agent が具象型に依存しない設計
+3. **FallbackCondition**: エラー分類ベースの柔軟なフォールバック制御
+4. **自動検出優先**: `--provider` 未指定で goroutine 並行検出 → チェーン自動構築
+5. **フォールバックチェーン**: ローカル失敗 → 別ローカル → クラウド（自動 + 手動切り替え）
 
-### 工数見積り
+### 実装状況 (v1.1.0)
 
-| Phase | 内容 | 目安 |
+| Phase | 内容 | 状態 |
 |---|---|---|
-| Phase 1 | インターフェース抽出 | 2-3日 |
-| Phase 2 | llama-server + 自動検出 | 1-2日 |
-| Phase 3 | クラウドプロバイダー | 2-3日 |
-| Phase 4 | フォールバックチェーン | 2日 |
-| Phase 5 | ゼロコンフィグ + ウィザード | 1-2日 |
-| **合計** | | **8-12日** |
+| Phase 1 | インターフェース抽出 | ✅ 完了 |
+| Phase 2 | llama-server + 自動検出 | ✅ 完了 |
+| Phase 3 | クラウドプロバイダー | ⚠️ 部分完了（Anthropic ネイティブ未実装） |
+| Phase 4 | フォールバックチェーン | ✅ 完了 |
+| Phase 5 | ゼロコンフィグ | ✅ 完了（ウィザード未実装） |
+
+### 今後の課題
+
+- Anthropic ネイティブ API 対応（Messages API 変換レイヤー）
+- CloudLimiter（コスト制御・日次上限）
+- セットアップウィザード（初心者向け対話形式設定）
+
+---
+
+**更新日**: 2026-02-25 (v1.1.0 実装反映)
