@@ -81,23 +81,24 @@ func (sm *ShutdownManager) Shutdown(reason string) {
 
 var (
 	// CLI flags
-	flagModel         string
-	flagSidecar       string
-	flagHost          string
-	flagProvider      string
-	flagAPIKey        string
-	flagPrompt        string
-	flagAutoConfirm   bool
-	flagResume        string
-	flagSessionID     string
-	flagListSessions  bool
-	flagMaxTokens     int
-	flagTemperature   float64
-	flagContextWindow int
-	flagVersion       bool
-	flagSandbox       bool
-	flagAutoVenv      bool
-	flagVenvDir       string
+	flagModel            string
+	flagSidecar          string
+	flagHost             string
+	flagProvider         string
+	flagAPIKey           string
+	flagPrompt           string
+	flagAutoConfirm      bool
+	flagResume           string
+	flagSessionID        string
+	flagListSessions     bool
+	flagMaxTokens        int
+	flagTemperature      float64
+	flagContextWindow    int
+	flagVersion          bool
+	flagSandbox          bool
+	flagAutoVenv         bool
+	flagVenvDir          string
+	flagPermissionCheck  bool
 )
 
 func init() {
@@ -118,6 +119,7 @@ func init() {
 	flag.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox mode (stage files before applying)")
 	flag.BoolVar(&flagAutoVenv, "auto-venv", false, "Auto-create and activate .venv for Python commands")
 	flag.StringVar(&flagVenvDir, "venv-dir", ".venv", "Virtual environment directory name")
+	flag.BoolVar(&flagPermissionCheck, "permission-check", false, "Show permission check dialog at startup")
 }
 
 func main() {
@@ -197,8 +199,8 @@ func main() {
 	shutdownMgr.mcpMgr = mcpMgr
 	setupSignalHandler(shutdownMgr)
 
-	// パーミッション確認ダイアログ（-y フラグが指定されていない場合）
-	if !cfg.AutoApprove {
+	// パーミッション確認ダイアログ（--permission-check フラグが指定された場合）
+	if flagPermissionCheck && !cfg.AutoApprove {
 		autoApprove, err := terminal.ShowPermissionCheck()
 		if err != nil {
 			terminal.PrintColored(ui.ColorRed, fmt.Sprintf("入力エラー: %v\n", err))
