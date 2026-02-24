@@ -2,7 +2,7 @@
 
 > Go言語で実装されたローカルAIコーディングエージェント
 
-**バージョン**: 1.1.0
+**バージョン**: 1.1.1
 
 ## 概要
 
@@ -66,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/zephel01/vibe-local-go/main/scripts
 
 ```bash
 # ダウンロード（例: macOS Apple Silicon）
-curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.1.0/vibe-darwin-arm64.tar.gz -o vibe.tar.gz
+curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.1.1/vibe-darwin-arm64.tar.gz -o vibe.tar.gz
 
 # 解凍
 tar xzf vibe.tar.gz
