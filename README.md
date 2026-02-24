@@ -2,7 +2,7 @@
 
 > Go言語で実装されたローカルAIコーディングエージェント
 
-**バージョン**: 1.0.0
+**バージョン**: 1.1.0
 
 ## 概要
 
@@ -16,7 +16,7 @@ vibe-local-goはGo言語で書かれた、オフラインで動作するAIコー
 
 - **高速起動**: Go言語による最適化、~50msで起動
 
-- **6つの内蔵ツール**: Bash, Read, Write, Edit, Glob, Grep
+- **10の内蔵ツール**: Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch, NotebookEdit, ParallelAgents
 
 - **プロバイダー管理**: 登録済みプロバイダーの切替・追加・編集・削除
 
@@ -66,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/zephel01/vibe-local-go/main/scripts
 
 ```bash
 # ダウンロード（例: macOS Apple Silicon）
-curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-arm64.tar.gz -o vibe.tar.gz
+curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.1.0/vibe-darwin-arm64.tar.gz -o vibe.tar.gz
 
 # 解凍
 tar xzf vibe.tar.gz
@@ -293,6 +293,9 @@ vibe --max-tokens 4096 --temperature 0.5
 | `/provider delete` | 登録済みプロバイダーを削除 |
 | `/models` | 利用可能なモデル一覧を表示（ローカルプロバイダーのみ） |
 | `/sandbox [on\|off]` | サンドボックスモードの切替 |
+| `/watch start [pattern]` | ファイル監視を開始（例: `*.go`, `src/**/*.ts`） |
+| `/watch stop` | ファイル監視を停止 |
+| `/watch status` | 監視状態と検知ファイル数を表示 |
 
 ## サポートプロバイダー一覧
 
@@ -341,16 +344,20 @@ vibe --max-tokens 4096 --temperature 0.5
 
 ## 内蔵ツール
 
-現在、以下の6つのツールが実装されています：
+現在、以下の10のツールが実装されています：
 
 | ツール | 説明 | パーミッション |
 |--------|------|-------------|
-| **bash** | シェルコマンド実行（バックグラウンド対応） | 要確認 |
-| **read** | ファイル読み込み（テキスト、画像、Jupyter） | 安全 |
-| **write** | ファイル書き込み（アトミック） | 要確認 |
-| **edit** | ファイル編集（文字列置換、diff生成） | 要確認 |
-| **glob** | ファイルパターン検索 | 安全 |
+| **bash** | シェルコマンド実行（バックグラウンド対応、エラーヒント付き） | 要確認 |
+| **read_file** | ファイル読み込み（テキスト、画像、Jupyter、PDF対応） | 安全 |
+| **write_file** | ファイル書き込み（アトミック） | 要確認 |
+| **edit_file** | ファイル編集（文字列置換、diff生成） | 要確認 |
+| **glob** | ファイルパターン検索（ファイル推定ヒント付き） | 安全 |
 | **grep** | テキストパターン検索（正規表現） | 安全 |
+| **web_fetch** | Webページ取得（HTML→テキスト変換） | 安全 |
+| **web_search** | DuckDuckGo検索 | 安全 |
+| **notebook_edit** | Jupyter Notebookセル編集（replace/insert/delete） | 要確認 |
+| **parallel_agents** | 並列サブエージェント実行（最大4並列） | 安全 |
 
 ### パーミッションについて
 
@@ -389,9 +396,14 @@ vibe --max-tokens 4096 --temperature 0.5
     │            │            │             │
     ▼            ▼            ▼             ▼
 ┌──────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐
-│Local │ │ Cloud 14 │ │   Tool   │ │  Command    │
-│ LLMs │ │ Providers│ │(6 tools) │ │  Handler    │
-└──────┘ └──────────┘ └──────────┘ └─────────────┘
+│Local │ │ Cloud 14 │ │   Tool    │ │  Command    │
+│ LLMs │ │ Providers│ │(10 tools) │ │  Handler    │
+└──────┘ └──────────┘ └───────────┘ └─────────────┘
+                            │
+                     ┌──────┴──────┐
+                     │   Watcher   │
+                     │(File Watch) │
+                     └─────────────┘
 ```
 
 **ポイント**:
@@ -418,8 +430,9 @@ vibe-local-go/
     ├── llm/            # LLMクライアント、ストリーミング
     ├── security/        # パーミッション管理、パス検証
     ├── session/         # セッション管理、永続化
-    ├── tool/           # 内蔵ツール
-    └── ui/             # TUI、コマンドハンドラー
+    ├── tool/           # 内蔵ツール (10種)
+    ├── ui/             # TUI、コマンドハンドラー
+    └── watcher/        # ファイル監視、変更通知インジェクター
 ```
 
 ## 設定
@@ -641,7 +654,7 @@ which vibe
 curl -fsSL https://raw.githubusercontent.com/zephel01/vibe-local-go/main/scripts/install-go.sh | bash
 
 # 手動再インストール（macOS Apple Siliconの場合）
-curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.0.0/vibe-darwin-arm64.tar.gz | tar xz
+curl -fsSL https://github.com/zephel01/vibe-local-go/releases/download/v1.1.0/vibe-darwin-arm64.tar.gz | tar xz
 mv vibe ~/.local/bin/
 chmod +x ~/.local/bin/vibe
 ```
@@ -665,8 +678,7 @@ chmod +x ~/.local/bin/vibe
 
 - ✅ マルチプロバイダー対応（ローカル + クラウド14社）
 - ✅ プロバイダー管理（追加・切替・編集・削除）
-- ✅ 6つの内蔵ツール（Bash, Read, Write, Edit, Glob, Grep）
-- ✅ WebFetch / WebSearch ツール（DuckDuckGo検索、SSRF防御付き）
+- ✅ 10の内蔵ツール（Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch, NotebookEdit, ParallelAgents）
 - ✅ セッション管理と永続化
 - ✅ 環境変数ベースのAPIキー設定
 - ✅ config.json による設定永続化
@@ -686,6 +698,10 @@ chmod +x ~/.local/bin/vibe
 - ✅ ステータス行（経過時間・トークン数のリアルタイム表示）
 - ✅ クロスプラットフォームビルド（Makefile + GitHub Actions、6プラットフォーム対応）
 - ✅ ワンコマンドインストール（`install-go.sh`）
+- ✅ Jupyter Notebook 編集ツール（NotebookEdit: replace/insert/delete）
+- ✅ PDF テキスト抽出（file_read ツールで .pdf 自動対応、Pure Go実装）
+- ✅ ファイル監視（`/watch` コマンド、ポーリングベース、外部依存なし）
+- ✅ 並列サブエージェント（最大4並列、書き込み競合検知、進捗表示）
 
 ### 開発中
 
@@ -695,8 +711,6 @@ chmod +x ~/.local/bin/vibe
 
 ### 未実装
 
-- ❌ サブエージェント機能（独立ループの並列エージェント）
-- ❌ Jupyter Notebook 編集ツール（NotebookEdit）
 - ❌ タスク管理ツール（TodoWrite / TodoRead）
 - ❌ ユーザー質問ツール（AskUserQuestion）
 - ❌ 多言語対応 UI（ja / en / zh の自動切り替え）
