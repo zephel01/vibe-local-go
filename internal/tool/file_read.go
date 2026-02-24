@@ -126,6 +126,11 @@ func (t *ReadTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 		return t.readJSON(resolvedPath)
 	}
 
+	// Check if PDF
+	if ext == ".pdf" {
+		return t.readPDF(resolvedPath)
+	}
+
 	// Read as text
 	return t.readText(resolvedPath, args.Offset, args.Limit)
 }
@@ -134,7 +139,7 @@ func (t *ReadTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 func (t *ReadTool) readText(path string, offset, limit int) (*Result, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return NewErrorResult(err), nil
+		return NewErrorResult(fmt.Errorf("file '%s' not found. Try: bash ls to see available files", path)), nil
 	}
 	defer file.Close()
 
@@ -175,7 +180,7 @@ func (t *ReadTool) readText(path string, offset, limit int) (*Result, error) {
 func (t *ReadTool) readImage(path string) (*Result, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return NewErrorResult(err), nil
+		return NewErrorResult(fmt.Errorf("file '%s' not found. Try: bash ls to see available files", path)), nil
 	}
 	defer file.Close()
 
@@ -209,7 +214,7 @@ func (t *ReadTool) readImage(path string) (*Result, error) {
 func (t *ReadTool) readJSON(path string) (*Result, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return NewErrorResult(err), nil
+		return NewErrorResult(fmt.Errorf("file '%s' not found. Try: bash ls to see available files", path)), nil
 	}
 	defer file.Close()
 
@@ -226,6 +231,23 @@ func (t *ReadTool) readJSON(path string) (*Result, error) {
 	}
 
 	return NewResult(pretty.String()), nil
+}
+
+// readPDF reads a PDF file and extracts text
+func (t *ReadTool) readPDF(path string) (*Result, error) {
+	extractor := NewPDFTextExtractor()
+
+	// Extract text (limit to 50 pages by default)
+	text, err := extractor.ExtractText(path, 50)
+	if err != nil {
+		return NewErrorResult(fmt.Errorf("PDF text extraction failed: %v. The file may be image-based (scanned) PDF", err)), nil
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("PDF file: %s\n\n", path))
+	output.WriteString(text)
+
+	return NewResult(output.String()), nil
 }
 
 // isBinary checks if a file is binary

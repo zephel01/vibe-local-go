@@ -24,11 +24,12 @@ import (
 	"github.com/zephel01/vibe-local-go/internal/skill"
 	"github.com/zephel01/vibe-local-go/internal/tool"
 	"github.com/zephel01/vibe-local-go/internal/ui"
+	"github.com/zephel01/vibe-local-go/internal/watcher"
 )
 
-const (
-	Version = "1.0.0"
-)
+// Version はビルド時に ldflags で上書き可能:
+//   go build -ldflags "-X main.Version=1.1.0"
+var Version = "1.1.0"
 
 // ShutdownManager handles graceful shutdown
 type ShutdownManager struct {
@@ -236,6 +237,11 @@ func main() {
 
 	// Initialize agent with LLMProvider
 	agt := agent.NewAgent(provider, registry, permissionMgr, validator, sess, terminal, cfg)
+
+	// Register parallel_agents tool (requires provider + registry)
+	parallelOrch := agent.NewParallelOrchestrator(provider, registry)
+	parallelBridge := agent.NewParallelBridge(parallelOrch)
+	registry.Register(tool.NewParallelAgentsTool(parallelBridge))
 
 	// Create command handler with provider access
 	cmdHandler := createCommandHandler(terminal, provider, cfg, sbMgr, skillMgr, mcpMgr, agt)
@@ -718,6 +724,9 @@ func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *
 
 	// /providers ステータスコマンドを登録
 	registerProvidersStatusCommand(cmdHandler, terminal, provider)
+
+	// Watchコマンドを登録
+	registerWatchCommands(cmdHandler, terminal, agt)
 
 	// タブ補完候補をLineEditorに設定
 	terminal.GetLineEditor().SetCompletions(cmdHandler.CommandNames())
@@ -1815,6 +1824,7 @@ func createToolRegistry(terminal *ui.Terminal, perm *security.PermissionManager,
 	registry.Register(tool.NewGrepTool())
 	registry.Register(tool.NewWebFetchTool())
 	registry.Register(tool.NewWebSearchTool())
+	registry.Register(tool.NewNotebookEditTool())
 
 	return registry
 }
@@ -2778,6 +2788,84 @@ func registerProvidersStatusCommand(cmdHandler *ui.CommandHandler, terminal *ui.
 
 			terminal.PrintColored(ui.ColorGray, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 			terminal.PrintColored(ui.ColorGray, "  /provider でプロバイダーを管理できます\n")
+			return nil
+		},
+	})
+}
+
+// registerWatchCommands はファイル監視関連のスラッシュコマンドを登録する（T-14203）
+func registerWatchCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, agt *agent.Agent) {
+	var fw *watcher.FileWatcher
+	var injector *watcher.Injector
+
+	cmdHandler.Register(&ui.SlashCommand{
+		Name:        "watch",
+		Description: "ファイル監視（/watch *.go で開始, /watch off で停止）",
+		Handler: func(args string) error {
+			args = strings.TrimSpace(args)
+
+			// /watch — 状態表示
+			if args == "" {
+				if fw == nil || !fw.IsRunning() {
+					terminal.PrintColored(ui.ColorYellow, "ファイル監視: OFF\n")
+					terminal.Printf("  使い方: /watch *.go  — 監視開始\n")
+				} else {
+					terminal.PrintColored(ui.ColorGreen, "ファイル監視: ON\n")
+					terminal.Printf("  パターン: %s\n", strings.Join(fw.Patterns(), ", "))
+					terminal.Printf("  監視ファイル数: %d\n", fw.WatchedFileCount())
+				}
+				return nil
+			}
+
+			// /watch off — 停止
+			if args == "off" || args == "stop" {
+				if fw != nil && fw.IsRunning() {
+					fw.Stop()
+					terminal.PrintColored(ui.ColorYellow, "ファイル監視を停止しました\n")
+				} else {
+					terminal.PrintColored(ui.ColorYellow, "ファイル監視は動作していません\n")
+				}
+				return nil
+			}
+
+			// /watch <patterns> — 開始
+			// 既存の watcher があれば停止
+			if fw != nil && fw.IsRunning() {
+				fw.Stop()
+			}
+
+			// 作業ディレクトリを取得
+			cwd, err := os.Getwd()
+			if err != nil {
+				terminal.PrintColored(ui.ColorRed, fmt.Sprintf("エラー: %v\n", err))
+				return nil
+			}
+
+			fw = watcher.NewFileWatcher(cwd)
+			injector = watcher.NewInjector(agt.GetSession())
+
+			patterns := strings.Fields(args)
+			if err := fw.Start(patterns); err != nil {
+				terminal.PrintColored(ui.ColorRed, fmt.Sprintf("監視開始エラー: %v\n", err))
+				return nil
+			}
+
+			terminal.PrintColored(ui.ColorGreen, fmt.Sprintf("ファイル監視を開始しました: %s\n", strings.Join(patterns, ", ")))
+			terminal.Printf("  監視ファイル数: %d\n", fw.WatchedFileCount())
+
+			// イベントリスナー goroutine
+			go func() {
+				for events := range fw.Events() {
+					if len(events) > 0 {
+						terminal.PrintColored(ui.ColorCyan, fmt.Sprintf("\n[Watch] %d ファイルが変更されました\n", len(events)))
+						for _, ev := range events {
+							terminal.Printf("  %s: %s\n", ev.EventType, ev.Path)
+						}
+						injector.InjectChanges(events)
+					}
+				}
+			}()
+
 			return nil
 		},
 	})
