@@ -147,7 +147,7 @@ func main() {
 
 	// Initialize components
 	terminal := ui.NewTerminal()
-	provider := createProvider(cfg)
+	provider := createProviderWithChain(ctx, cfg, terminal)
 	router := createModelRouter(provider, cfg)
 	permissionMgr, validator := createSecurityComponents(cfg)
 
@@ -410,6 +410,147 @@ func createProvider(cfg *config.Config) llm.LLMProvider {
 		// デフォルト: Ollama
 		return llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
 	}
+}
+
+// createProviderWithChain ゼロコンフィグ対応のプロバイダー作成
+// プロバイダーが未指定の場合は AutoDetect → ProviderChain を構築
+// 指定されている場合はクラウドフォールバック付きチェーンを構築
+func createProviderWithChain(ctx context.Context, cfg *config.Config, terminal *ui.Terminal) llm.LLMProvider {
+	// 明示的にプロバイダーが指定されている場合
+	if cfg.Provider != "" {
+		mainProvider := createProvider(cfg)
+		return buildChainWithFallbacks(mainProvider, cfg, terminal)
+	}
+
+	// ゼロコンフィグ: ローカルサーバーを自動検出
+	terminal.PrintColored(ui.ColorCyan, "🔍 LLMプロバイダーを自動検出中...\n")
+	detected := llm.AutoDetect(ctx)
+
+	if len(detected) == 0 {
+		// 検出できなかった場合はクラウドAPIキーをチェック
+		cloudProvider := detectCloudFromEnv(cfg)
+		if cloudProvider != nil {
+			terminal.PrintColored(ui.ColorGreen, fmt.Sprintf("✓ クラウドプロバイダー検出: %s\n", cloudProvider.Info().Name))
+			return cloudProvider
+		}
+		// 何も見つからない → デフォルトの Ollama で進む（接続チェックで再設定可能）
+		terminal.PrintColored(ui.ColorYellow, "⚠ LLMプロバイダーが見つかりません。デフォルト(Ollama)で接続を試みます\n")
+		return createProvider(cfg)
+	}
+
+	// 検出されたプロバイダーからメインを選択
+	best := detected[0]
+	terminal.PrintColored(ui.ColorGreen, fmt.Sprintf("✓ %s 検出 (%s, モデル: %d件)\n",
+		best.Name, best.URL, len(best.Models)))
+
+	// cfg にセット（以降の処理で参照されるため）
+	cfg.Provider = best.Name
+	if cfg.Model == "" && len(best.Models) > 0 {
+		cfg.Model = best.Models[0]
+	}
+	cfg.OllamaHost = best.URL
+
+	// メインプロバイダー作成
+	mainProvider := createProvider(cfg)
+
+	// 検出された他のプロバイダー + クラウドでチェーンを構築
+	chain := llm.NewProviderChain(mainProvider)
+
+	// 他のローカルプロバイダーをサブとして追加
+	for i := 1; i < len(detected); i++ {
+		d := detected[i]
+		subCfg := *cfg
+		subCfg.Provider = d.Name
+		subCfg.OllamaHost = d.URL
+		if len(d.Models) > 0 {
+			subCfg.Model = d.Models[0]
+		}
+		subProvider := createProvider(&subCfg)
+		chain.AddProvider(subProvider, llm.RoleSub)
+		terminal.PrintColored(ui.ColorCyan, fmt.Sprintf("  + %s (%s) をサブプロバイダーに追加\n", d.Name, d.URL))
+	}
+
+	// クラウドフォールバックを追加
+	addCloudFallbackToChain(chain, cfg, terminal)
+
+	// フォールバックコールバック（UI通知）
+	chain.SetFallbackCallback(func(from, to string, class llm.ErrorClassification) {
+		msg := llm.ErrorMessage(class, from, to)
+		terminal.PrintColored(ui.ColorYellow, msg+"\n")
+	})
+
+	if chain.Len() > 1 {
+		return chain
+	}
+	return mainProvider
+}
+
+// buildChainWithFallbacks 既存プロバイダーにクラウドフォールバックを付けたチェーンを構築
+func buildChainWithFallbacks(mainProvider llm.LLMProvider, cfg *config.Config, terminal *ui.Terminal) llm.LLMProvider {
+	chain := llm.NewProviderChain(mainProvider)
+
+	// ローカルプロバイダーの場合のみクラウドフォールバックを追加
+	info := mainProvider.Info()
+	if info.Type == llm.ProviderTypeLocal {
+		addCloudFallbackToChain(chain, cfg, terminal)
+	}
+
+	// フォールバックコールバック
+	chain.SetFallbackCallback(func(from, to string, class llm.ErrorClassification) {
+		msg := llm.ErrorMessage(class, from, to)
+		terminal.PrintColored(ui.ColorYellow, msg+"\n")
+	})
+
+	if chain.Len() > 1 {
+		return chain
+	}
+	return mainProvider
+}
+
+// addCloudFallbackToChain 環境変数からクラウドフォールバックを追加
+func addCloudFallbackToChain(chain *llm.ProviderChain, cfg *config.Config, terminal *ui.Terminal) {
+	if cfg.CloudAPIKeys == nil {
+		return
+	}
+	// 優先順: openai → anthropic → google → deepseek
+	fallbackOrder := []string{"openai", "anthropic", "google", "deepseek"}
+	for _, name := range fallbackOrder {
+		if apiKey, ok := cfg.CloudAPIKeys[name]; ok && apiKey != "" {
+			// メインプロバイダーと同じなら追加しない
+			if cfg.Provider == name {
+				continue
+			}
+			def := llm.GetCloudProviderDef(name)
+			model := ""
+			if def != nil {
+				model = def.DefaultModel
+			}
+			fbProvider := llm.NewCloudProvider(name, apiKey, model)
+			chain.AddProvider(fbProvider, llm.RoleFallback)
+			terminal.PrintColored(ui.ColorCyan, fmt.Sprintf("  + %s をフォールバックに追加\n", name))
+			break // 最初の1つだけ
+		}
+	}
+}
+
+// detectCloudFromEnv 環境変数からクラウドプロバイダーを検出
+func detectCloudFromEnv(cfg *config.Config) llm.LLMProvider {
+	if cfg.CloudAPIKeys == nil {
+		return nil
+	}
+	// 優先順位で最初に見つかったものを使用
+	priority := []string{"openai", "anthropic", "google", "deepseek", "openrouter"}
+	for _, name := range priority {
+		if apiKey, ok := cfg.CloudAPIKeys[name]; ok && apiKey != "" {
+			cfg.Provider = name
+			def := llm.GetCloudProviderDef(name)
+			if cfg.Model == "" && def != nil {
+				cfg.Model = def.DefaultModel
+			}
+			return llm.NewCloudProvider(name, apiKey, cfg.Model)
+		}
+	}
+	return nil
 }
 
 // getAPIKeyForProvider プロバイダーに対応するAPIキーを取得
@@ -727,6 +868,9 @@ func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *
 
 	// Watchコマンドを登録
 	registerWatchCommands(cmdHandler, terminal, agt)
+
+	// Chain コマンドを登録
+	registerChainCommands(cmdHandler, terminal, provider)
 
 	// タブ補完候補をLineEditorに設定
 	terminal.GetLineEditor().SetCompletions(cmdHandler.CommandNames())
@@ -2866,6 +3010,68 @@ func registerWatchCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal,
 				}
 			}()
 
+			return nil
+		},
+	})
+}
+
+// registerChainCommands は /chain コマンドを登録する
+func registerChainCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, provider llm.LLMProvider) {
+	cmdHandler.Register(&ui.SlashCommand{
+		Name:        "chain",
+		Description: "プロバイダーチェーンの状態表示・切替",
+		Handler: func(args string) error {
+			chain, ok := provider.(*llm.ProviderChain)
+			if !ok {
+				terminal.PrintColored(ui.ColorYellow, "プロバイダーチェーンは無効です（単一プロバイダーモード）\n")
+				info := provider.Info()
+				terminal.Printf("  現在: %s (%s)\n", info.Name, info.Model)
+				return nil
+			}
+
+			args = strings.TrimSpace(args)
+
+			// /chain — 状態表示
+			if args == "" {
+				entries := chain.GetEntries()
+				current := chain.CurrentIndex()
+				terminal.PrintColored(ui.ColorCyan, "━━━ プロバイダーチェーン ━━━\n")
+				for i, e := range entries {
+					info := e.Provider.Info()
+					icon := ui.ProviderIcon(info.Name)
+					marker := "  "
+					if i == current {
+						marker = "▶ "
+					}
+					failCount := chain.GetFailureCount(i)
+					failInfo := ""
+					if failCount > 0 {
+						failTime := chain.GetFailureTime(i)
+						failInfo = fmt.Sprintf(" (失敗: %d回, 最終: %s)", failCount, failTime.Format("15:04:05"))
+					}
+					terminal.Printf("  %s%s %s [%s] model=%s%s\n",
+						marker, icon, info.Name, string(e.Role), info.Model, failInfo)
+				}
+				terminal.Printf("\n  フォールバック: 有効\n")
+				if lastErr := chain.GetLastError(); lastErr != nil {
+					terminal.PrintColored(ui.ColorYellow, fmt.Sprintf("  最終エラー: %v\n", lastErr))
+				}
+				return nil
+			}
+
+			// /chain <number> — プロバイダー切替
+			idx := 0
+			if _, err := fmt.Sscanf(args, "%d", &idx); err == nil {
+				if err := chain.SwitchTo(idx); err != nil {
+					terminal.PrintColored(ui.ColorRed, fmt.Sprintf("切替エラー: %v\n", err))
+					return nil
+				}
+				info := chain.Info()
+				terminal.PrintColored(ui.ColorGreen, fmt.Sprintf("✓ %s に切り替えました\n", info.Name))
+				return nil
+			}
+
+			terminal.PrintColored(ui.ColorYellow, "使い方: /chain (状態表示) | /chain <番号> (切替)\n")
 			return nil
 		},
 	})

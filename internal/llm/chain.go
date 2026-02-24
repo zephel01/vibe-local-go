@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 )
@@ -27,6 +26,9 @@ type ChainEntry struct {
 	Priority int // 低い値が優先
 }
 
+// FallbackCallback フォールバック発生時のコールバック
+type FallbackCallback func(fromProvider, toProvider string, classification ErrorClassification)
+
 // ProviderChain フォールバック付きプロバイダーチェーン
 // Phase 4: フォールバック機能対応
 type ProviderChain struct {
@@ -37,6 +39,8 @@ type ProviderChain struct {
 	failureTime  map[int]time.Time        // プロバイダーごとの最後の失敗時刻
 	fallbackOn   bool                     // フォールバック有効化フラグ
 	maxRetries   int                      // 最大リトライ数
+	condition    FallbackCondition        // フォールバック条件
+	onFallback   FallbackCallback         // フォールバック通知コールバック
 	mu           sync.RWMutex
 }
 
@@ -63,7 +67,50 @@ func NewProviderChain(providers ...LLMProvider) *ProviderChain {
 		failureTime:  make(map[int]time.Time),
 		fallbackOn:   len(providers) > 1, // 複数プロバイダーの場合のみ有効化
 		maxRetries:   3,
+		condition:    DefaultFallbackCondition,
 	}
+}
+
+// SetFallbackCondition フォールバック条件を設定
+func (c *ProviderChain) SetFallbackCondition(cond FallbackCondition) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.condition = cond
+}
+
+// SetFallbackCallback フォールバック発生時のコールバックを設定
+func (c *ProviderChain) SetFallbackCallback(cb FallbackCallback) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onFallback = cb
+}
+
+// AddProvider チェーンにプロバイダーを追加
+func (c *ProviderChain) AddProvider(provider LLMProvider, role ChainRole) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = append(c.entries, ChainEntry{
+		Provider: provider,
+		Role:     role,
+		Priority: len(c.entries),
+	})
+	if len(c.entries) > 1 {
+		c.fallbackOn = true
+	}
+}
+
+// Len チェーンのプロバイダー数を返す
+func (c *ProviderChain) Len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.entries)
+}
+
+// CurrentIndex 現在のプロバイダーインデックスを返す
+func (c *ProviderChain) CurrentIndex() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.current
 }
 
 // EnableFallback フォールバック機能を有効化
@@ -134,24 +181,31 @@ func (c *ProviderChain) chatWithFallback(ctx context.Context, req *ChatRequest) 
 		}
 
 		// Fallback 発動 → 次のプロバイダーへ
+		classification := ClassifyError(err)
 		c.mu.Lock()
 		c.failureCount[c.current]++
 		c.failureTime[c.current] = time.Now()
 		c.lastError = err
 		c.mu.Unlock()
 
+		// リトライ前の待機
+		if delay := GetRetryDelay(classification, attempt); delay > 0 {
+			time.Sleep(delay)
+		}
+
 		// 次のプロバイダーに切り替え
 		if !c.switchToNext() {
 			return nil, fmt.Errorf("all providers failed, last error: %w", err)
 		}
 
-		// UI通知
+		// コールバック通知
 		c.mu.RLock()
-		nextProvider := c.entries[c.current].Provider.Info()
+		nextProviderInfo := c.entries[c.current].Provider.Info()
+		cb := c.onFallback
 		c.mu.RUnlock()
-		// 通知はログで行われる（Terminal への直接出力は不要）
-		_ = providerInfo
-		_ = nextProvider
+		if cb != nil {
+			cb(providerInfo.Name, nextProviderInfo.Name, classification)
+		}
 	}
 
 	return nil, fmt.Errorf("all providers exhausted")
@@ -303,47 +357,12 @@ func (c *ProviderChain) SwitchTo(index int) error {
 	return nil
 }
 
-// shouldFallback エラーからフォールバックすべきかを判定
+// shouldFallback エラーからフォールバックすべきかを判定（FallbackCondition ベース）
 func (c *ProviderChain) shouldFallback(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// ネットワークエラー → Fallback 対象
-	if _, ok := err.(net.Error); ok {
-		return true
-	}
-
-	// 特定のエラーメッセージパターンで判定
-	errStr := err.Error()
-
-	// タイムアウト → Fallback 対象
-	if errStr == "context deadline exceeded" {
-		return true
-	}
-
-	// 接続拒否 → Fallback 対象
-	if errStr == "connection refused" {
-		return true
-	}
-
-	// ホスト不在 → Fallback 対象
-	if errStr == "no such host" {
-		return true
-	}
-
-	// HTTP 5xx エラー → Fallback 対象
-	if len(errStr) >= 4 && errStr[0] == '5' && errStr[1] == '0' && errStr[2] == '0' {
-		return true
-	}
-
-	// "HTTP 5" から始まるエラー → Fallback 対象
-	if len(errStr) > 7 && errStr[:5] == "HTTP " && errStr[5] >= '5' && errStr[5] <= '9' {
-		return true
-	}
-
-	// その他のエラー（HTTP 4xx, モデルエラー等）→ Fallback しない
-	return false
+	c.mu.RLock()
+	cond := c.condition
+	c.mu.RUnlock()
+	return EvaluateFallback(err, cond)
 }
 
 // switchToNext 次の利用可能なプロバイダーに切り替え
