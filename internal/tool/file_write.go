@@ -102,6 +102,11 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 		return NewErrorResult(fmt.Errorf("cannot write to protected path: %s", args.Path)), nil
 	}
 
+	// Check for managed/dependency directories (仮想環境・依存関係ディレクトリへの誤書き込みを防ぐ)
+	if managedDir := getManagedDirWarning(resolvedPath); managedDir != "" {
+		return NewErrorResult(fmt.Errorf("cannot write to managed directory %s: %s\nHint: write to the project root or a subdirectory you created", managedDir, args.Path)), nil
+	}
+
 	// Check if it's a symlink
 	if isSymlink(args.Path) {
 		return NewErrorResult(fmt.Errorf("cannot write to symlink: %s", args.Path)), nil
@@ -169,6 +174,33 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 	})
 
 	return NewResult(fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), args.Path)), nil
+}
+
+// getManagedDirWarning checks if path is inside a managed/dependency directory.
+// Returns the managed dir name if the path should not be written, empty string otherwise.
+// 仮想環境・依存関係・バージョン管理ディレクトリへの誤書き込みを防ぐ
+func getManagedDirWarning(path string) string {
+	path = filepath.Clean(path)
+	// Check each path component for managed directory names
+	parts := strings.Split(path, string(filepath.Separator))
+	managedDirs := []string{
+		".venv",        // Python virtual environment
+		"venv",         // Python virtual environment (alternative name)
+		"__pycache__",  // Python bytecode cache
+		"node_modules", // Node.js dependencies
+		".git",         // Git internals
+		".tox",         // Python tox testing
+		"site-packages", // Python installed packages
+		"dist-packages", // Python system packages
+	}
+	for _, part := range parts {
+		for _, managed := range managedDirs {
+			if part == managed {
+				return managed
+			}
+		}
+	}
+	return ""
 }
 
 // isProtectedPath checks if path is protected

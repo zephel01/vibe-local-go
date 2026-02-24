@@ -206,6 +206,7 @@
   - サイズ制限: 10MB
   - symlink 保護
   - 保護ファイルへの書き込みブロック
+  - 管理ディレクトリ保護（.venv, venv, node_modules, .git, __pycache__ 等への誤書き込みを防ぐ getManagedDirWarning）
   - Undo スタック（最大20エントリ）
   - 推定: ~100行 | 依存: T-301
 
@@ -369,9 +370,11 @@
   - 推定: ~100行 | 依存: T-1201
 
 - [x] T-1203: ループ検出（internal/agent/loop_detector.go）
-  - MAX_SAME_TOOL_REPEAT=3
-  - 直近3回の tool_call を比較
-  - 同一パターン検出時に停止
+  - MAX_SAME_TOOL_REPEAT=5（旧3→引数込み判定のため緩和）
+  - ループ判定を (ツール名+引数) ハッシュベースに変更（hashCounts）
+  - ツール名だけ同じでも引数が異なれば別カウント（bash誤検知防止）
+  - hasIdenticalSequence: 直近2回→3回連続に緩和
+  - LoopHistorySize=20（旧10）
   - 推定: ~40行 | 依存: T-000
 
 ---

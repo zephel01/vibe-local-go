@@ -98,6 +98,11 @@ func (t *EditTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 		return NewErrorResult(err), nil
 	}
 
+	// Check for managed/dependency directories
+	if managedDir := getManagedDirWarning(resolvedPath); managedDir != "" {
+		return NewErrorResult(fmt.Errorf("cannot edit files in managed directory %s: %s\nHint: edit files in the project root or your own subdirectories", managedDir, args.Path)), nil
+	}
+
 	// Read file
 	content, err := os.ReadFile(resolvedPath)
 	if err != nil {

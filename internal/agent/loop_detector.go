@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	// MaxSameToolRepeat is the maximum number of times to repeat the same tool
-	MaxSameToolRepeat = 3
+	// MaxSameToolRepeat is the maximum number of times to repeat the same (tool, args) pair
+	MaxSameToolRepeat = 5
 	// LoopHistorySize is the number of recent tool calls to track
-	LoopHistorySize = 10
+	LoopHistorySize = 20
 )
 
 // ToolCallRecord represents a recorded tool call
@@ -22,9 +22,10 @@ type ToolCallRecord struct {
 
 // LoopDetector detects repeated tool call patterns
 type LoopDetector struct {
-	history     []ToolCallRecord
-	toolCounts  map[string]int
-	historySize int
+	history       []ToolCallRecord
+	toolCounts    map[string]int // ツール名ごとの総呼び出し数（参考値）
+	hashCounts    map[string]int // (ツール名+引数)ハッシュごとの呼び出し数（ループ判定用）
+	historySize   int
 }
 
 // NewLoopDetector creates a new loop detector
@@ -32,6 +33,7 @@ func NewLoopDetector() *LoopDetector {
 	return &LoopDetector{
 		history:     make([]ToolCallRecord, 0, LoopHistorySize),
 		toolCounts:  make(map[string]int),
+		hashCounts:  make(map[string]int),
 		historySize: LoopHistorySize,
 	}
 }
@@ -50,8 +52,11 @@ func (ld *LoopDetector) RecordToolCall(toolName string, arguments string) {
 	}
 	ld.history = append(ld.history, record)
 
-	// Update tool count
+	// ツール名ごとの総カウント（参考値）
 	ld.toolCounts[toolName]++
+	// (ツール名+引数)ペアのカウント（ループ判定用）
+	hash := GenerateToolCallHash(toolName, arguments)
+	ld.hashCounts[hash]++
 }
 
 // DetectLoop checks if a loop pattern is detected
@@ -60,8 +65,9 @@ func (ld *LoopDetector) DetectLoop() bool {
 		return false
 	}
 
-	// Check for same tool repeated too many times
-	for _, count := range ld.toolCounts {
+	// 同じ(ツール名+引数)ペアが MaxSameToolRepeat 回以上呼ばれた場合はループ
+	// ※ ツール名だけでなく引数も含めて判定することで、異なるbashコマンドを誤検知しない
+	for _, count := range ld.hashCounts {
 		if count >= MaxSameToolRepeat {
 			return true
 		}
@@ -81,18 +87,22 @@ func (ld *LoopDetector) DetectLoop() bool {
 }
 
 // hasIdenticalSequence checks for identical tool calls in sequence
+// 同じ(ツール+引数)が3回以上連続した場合にループ判定（2回は誤検知しやすいため緩和）
 func (ld *LoopDetector) hasIdenticalSequence() bool {
-	if len(ld.history) < 2 {
+	if len(ld.history) < 3 {
 		return false
 	}
 
-	// Check last N calls
-	last := ld.history[len(ld.history)-1]
-	previous := ld.history[len(ld.history)-2]
+	// 直近3回が全て同じ(ツール名+引数)かチェック
+	n := len(ld.history)
+	last := ld.history[n-1]
+	prev1 := ld.history[n-2]
+	prev2 := ld.history[n-3]
 
-	// If same tool and same arguments, potential loop
-	if last.ToolName == previous.ToolName &&
-		last.Arguments == previous.Arguments {
+	if last.ToolName == prev1.ToolName &&
+		last.Arguments == prev1.Arguments &&
+		last.ToolName == prev2.ToolName &&
+		last.Arguments == prev2.Arguments {
 		return true
 	}
 
@@ -201,6 +211,7 @@ func (ld *LoopDetector) getDescription(pattern ToolCallRecord) string {
 func (ld *LoopDetector) Reset() {
 	ld.history = make([]ToolCallRecord, 0, ld.historySize)
 	ld.toolCounts = make(map[string]int)
+	ld.hashCounts = make(map[string]int)
 }
 
 // GetHistorySize returns the current history size
