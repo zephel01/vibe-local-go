@@ -181,6 +181,10 @@ func (t *BashTool) executeSync(ctx context.Context, command string, timeout time
 
 	// Check if command failed
 	if err != nil {
+		hint := inferErrorHint(output, command)
+		if hint != "" {
+			return NewErrorResultWithID("", fmt.Errorf("Command failed: %v\nOutput:\n%s\n\nHint: %s", err, output, hint)), nil
+		}
 		return NewErrorResultWithID("", fmt.Errorf("Command failed: %v\nOutput:\n%s", err, output)), nil
 	}
 
@@ -507,4 +511,40 @@ func InitBashToolCleanup() {
 			cleanupOldBackgroundTasks()
 		}
 	}()
+}
+
+// inferErrorHint analyzes command output and provides actionable hints
+func inferErrorHint(output string, command string) string {
+	outputLower := strings.ToLower(output)
+
+	// Node.js dependency issues
+	if strings.Contains(outputLower, "doesn't seem to have been installed") ||
+		strings.Contains(outputLower, "does not seem to have been installed") {
+		return "Dependencies not installed. Try running: yarn install (or npm install) first, then retry the test command."
+	}
+
+	if strings.Contains(outputLower, "cannot find module") ||
+		strings.Contains(outputLower, "module_not_found") {
+		// Check if it's a project dependency issue
+		if strings.Contains(outputLower, "node_modules") || strings.Contains(outputLower, "require") {
+			return "Missing module. Try running: yarn install (or npm install) to install dependencies, then retry."
+		}
+		return "Module not found. Check if the file path is correct, or install dependencies with: yarn install"
+	}
+
+	if strings.Contains(outputLower, "enoent") && strings.Contains(outputLower, "package.json") {
+		return "No package.json found. Make sure you are in the correct project directory."
+	}
+
+	// Python dependency issues
+	if strings.Contains(outputLower, "no module named") {
+		return "Python module not found. Try: pip install <module_name> (or check requirements.txt)"
+	}
+
+	// Permission issues
+	if strings.Contains(outputLower, "permission denied") {
+		return "Permission denied. Check file permissions or try with appropriate access."
+	}
+
+	return ""
 }

@@ -53,7 +53,7 @@ func TestRegistry_Register(t *testing.T) {
 		t.Errorf("expected 1 tool, got %d", reg.Count())
 	}
 
-	retrieved, ok := reg.Get("test_tool")
+	retrieved, ok := reg.GetTool("test_tool")
 	if !ok {
 		t.Error("tool not found after registration")
 	}
@@ -92,7 +92,7 @@ func TestRegistry_Get(t *testing.T) {
 	reg.Register(tool)
 
 	// Test getting existing tool
-	retrieved, ok := reg.Get("test_tool")
+	retrieved, ok := reg.GetTool("test_tool")
 	if !ok {
 		t.Error("expected to find tool")
 	}
@@ -101,7 +101,7 @@ func TestRegistry_Get(t *testing.T) {
 	}
 
 	// Test getting non-existent tool
-	_, ok = reg.Get("non_existent")
+	_, ok = reg.GetTool("non_existent")
 	if ok {
 		t.Error("expected false for non-existent tool")
 	}

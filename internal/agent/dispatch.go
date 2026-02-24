@@ -106,13 +106,13 @@ func (d *Dispatcher) executeSequential(ctx context.Context, toolCalls []session.
 	return results
 }
 
-// executeSingleTool executes a single tool
+// executeSingleTool executes a single tool with retry logic and failure strategy
 func (d *Dispatcher) executeSingleTool(ctx context.Context, toolCall *session.ToolCall) ToolResult {
 	toolName := toolCall.Function.Name
 	arguments := toolCall.Function.Arguments
 
 	// Get tool
-	toolInst, exists := d.registry.Get(toolName)
+	toolCfg, exists := d.registry.Get(toolName)
 	if !exists {
 		return ToolResult{
 			ToolCallID: toolCall.ID,
@@ -120,22 +120,122 @@ func (d *Dispatcher) executeSingleTool(ctx context.Context, toolCall *session.To
 			Error:       fmt.Sprintf("Tool not found: %s", toolName),
 		}
 	}
+	toolInst := toolCfg.Tool
 
-	// Execute tool
-	toolResult, err := toolInst.Execute(ctx, json.RawMessage(arguments))
-	if err != nil {
+	var lastErr error
+
+	// Retry loop
+	for attempt := 0; attempt <= toolCfg.MaxRetries; attempt++ {
+		// Execute tool
+		toolResult, err := toolInst.Execute(ctx, json.RawMessage(arguments))
+		if err == nil && !toolResult.IsError {
+			return ToolResult{
+				ToolCallID: toolCall.ID,
+				IsSuccess:   true,
+				Content:     toolResult.Output,
+				Error:       toolResult.Error,
+			}
+		}
+
+		if err != nil {
+			lastErr = err
+		} else if toolResult.IsError {
+			lastErr = fmt.Errorf("%s", toolResult.Error)
+		}
+
+		// Check if we should retry
+		if attempt < toolCfg.MaxRetries {
+			if isRetryable(lastErr) {
+				time.Sleep(toolCfg.RetryBackoff)
+				continue
+			}
+		}
+
+		break
+	}
+
+	// Tool failed - apply failure strategy
+	switch toolCfg.FailureStrategy {
+	case tool.FailureStrategyFatal:
 		return ToolResult{
 			ToolCallID: toolCall.ID,
 			IsSuccess:   false,
-			Error:       err.Error(),
+			Error:       fmt.Sprintf("❌ %s failed: %v", toolName, lastErr),
+		}
+
+	case tool.FailureStrategySkip:
+		return ToolResult{
+			ToolCallID: toolCall.ID,
+			IsSuccess:   true,
+			Content:     fmt.Sprintf("⚠️ %s skipped due to failure, continuing without it", toolName),
+			Error:       "",
+		}
+
+	case tool.FailureStrategyFallback:
+		fallbackResult := d.getFallbackResult(toolName, arguments)
+		return ToolResult{
+			ToolCallID: toolCall.ID,
+			IsSuccess:   true,
+			Content:     fallbackResult,
+			Error:       fmt.Sprintf("⚠️ %s failed, using fallback result", toolName),
+		}
+
+	default:
+		return ToolResult{
+			ToolCallID: toolCall.ID,
+			IsSuccess:   false,
+			Error:       fmt.Sprintf("%s failed: %v", toolName, lastErr),
+		}
+	}
+}
+
+// isRetryable checks if an error should be retried
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Retryable error patterns
+	retryablePatterns := []string{
+		"timeout",
+		"connection refused",
+		"temporary failure",
+		"rate limit",
+		"network unreachable",
+		"temporary",
+	}
+
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
 		}
 	}
 
-	return ToolResult{
-		ToolCallID: toolCall.ID,
-		IsSuccess:   !toolResult.IsError,
-		Content:     toolResult.Output,
-		Error:       toolResult.Error,
+	return false
+}
+
+// getFallbackResult returns a fallback result for a failed tool
+func (d *Dispatcher) getFallbackResult(toolName string, arguments string) string {
+	switch toolName {
+	case "web_search":
+		return fmt.Sprintf("[]\n// Note: web_search unavailable - search the web manually if needed")
+
+	case "web_fetch":
+		return fmt.Sprintf("// Note: web_fetch unavailable - content could not be retrieved")
+
+	case "glob":
+		return "[]\n// Note: glob returned no results (fallback)"
+
+	case "grep":
+		return "// Note: grep returned no matches (fallback)"
+
+	case "bash":
+		return "// Command execution failed (fallback - may need manual execution)"
+
+	default:
+		return fmt.Sprintf("// Tool %s unavailable (fallback)", toolName)
 	}
 }
 
@@ -286,12 +386,12 @@ func (d *Dispatcher) GroupForParallelExecution(toolCalls []session.ToolCall) [][
 
 // GetToolCapabilities returns information about tool capabilities
 func (d *Dispatcher) GetToolCapabilities(toolName string) *ToolCapabilities {
-	toolInst, exists := d.registry.Get(toolName)
+	toolCfg, exists := d.registry.Get(toolName)
 	if !exists {
 		return nil
 	}
 
-	schema := toolInst.Schema()
+	schema := toolCfg.Tool.Schema()
 
 	return &ToolCapabilities{
 		Name:       schema.Name,
@@ -331,7 +431,7 @@ func (d *Dispatcher) ValidateToolCall(toolCall *session.ToolCall) error {
 	toolName := toolCall.Function.Name
 
 	// Check if tool exists
-	if _, exists := d.registry.Get(toolName); !exists {
+	if _, exists := d.registry.GetTool(toolName); !exists {
 		return fmt.Errorf("tool not found: %s", toolName)
 	}
 

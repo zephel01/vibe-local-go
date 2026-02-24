@@ -312,7 +312,7 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 	}
 
 	// Get tool
-	toolInst, exists := a.registry.Get(toolName)
+	toolCfg, exists := a.registry.Get(toolName)
 	if !exists {
 		return ToolResult{
 			ToolCallID: toolCall.ID,
@@ -320,10 +320,12 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 			Error:       fmt.Sprintf("Tool not found: %s", toolName),
 		}
 	}
+	toolInst := toolCfg.Tool
 
 	// Check permission
 	allowed, reason, err := a.permissionMgr.CheckPermission(toolName, nil)
 	if err != nil {
+		a.LogToolError(toolName, err, arguments, 0)
 		return ToolResult{
 			ToolCallID: toolCall.ID,
 			IsSuccess:   false,
@@ -336,6 +338,7 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 		a.terminal.Printf("Tool: %s (Reason: %s)\n", toolName, reason)
 		allowed, err = a.askUserPermission(toolName, arguments)
 		if err != nil {
+			a.LogToolError(toolName, err, arguments, 0)
 			return ToolResult{
 				ToolCallID: toolCall.ID,
 				IsSuccess:   false,
@@ -361,7 +364,40 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 	a.spinner.Start(fmt.Sprintf("⚡ %s...", toolName))
 	toolResult, err := toolInst.Execute(ctx, json.RawMessage(arguments))
 	a.spinner.Stop()
+
 	if err != nil {
+		// Enhanced error logging
+		a.LogToolError(toolName, err, arguments, 0)
+
+		// Handle based on tool category
+		if toolCfg.Metadata != nil {
+			switch toolCfg.Metadata.Category {
+			case tool.ToolCategoryOptional:
+				a.terminal.PrintWarning(fmt.Sprintf("⚠️ Optional tool %s failed, continuing: %v", toolName, err))
+				return ToolResult{
+					ToolCallID: toolCall.ID,
+					IsSuccess:   true,
+					Content:     fmt.Sprintf("// Tool %s unavailable: %v", toolName, err),
+					Error:       "",
+				}
+			case tool.ToolCategoryEnhancing:
+				a.terminal.PrintWarning(fmt.Sprintf("⚠️ Enhancing tool %s failed, using fallback", toolName))
+				return ToolResult{
+					ToolCallID: toolCall.ID,
+					IsSuccess:   true,
+					Content:     a.getFallbackResult(toolName),
+					Error:       fmt.Sprintf("Tool %s failed (using fallback)", toolName),
+				}
+			case tool.ToolCategoryEssential:
+				return ToolResult{
+					ToolCallID: toolCall.ID,
+					IsSuccess:   false,
+					Error:       err.Error(),
+				}
+			}
+		}
+
+		// Default behavior for tools without category
 		return ToolResult{
 			ToolCallID: toolCall.ID,
 			IsSuccess:   false,
@@ -528,6 +564,52 @@ func (a *Agent) HandleToolCallError(toolName string, err error) {
 	errorMsg := fmt.Sprintf("Tool execution failed for %s: %v", toolName, err)
 	a.terminal.PrintError(errorMsg)
 	a.session.AddAssistantMessage(errorMsg)
+}
+
+// LogToolError logs detailed error information
+func (a *Agent) LogToolError(toolName string, err error, args string, attempt int) {
+	errorMsg := fmt.Sprintf(`
+⚠️ Tool Error Details
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tool:        %s
+Attempt:     %d
+Error:       %s
+Error Type:  %T
+Args:        %s
+Timestamp:   %s
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+		toolName,
+		attempt,
+		err.Error(),
+		err,
+		args,
+		time.Now().Format(time.RFC3339),
+	)
+
+	a.terminal.PrintError(errorMsg)
+}
+
+// getFallbackResult returns a fallback result for a failed tool
+func (a *Agent) getFallbackResult(toolName string) string {
+	switch toolName {
+	case "web_search":
+		return "[]\n// Note: web_search unavailable - search the web manually if needed"
+
+	case "web_fetch":
+		return "// Note: web_fetch unavailable - content could not be retrieved"
+
+	case "glob":
+		return "[]\n// Note: glob returned no results (fallback)"
+
+	case "grep":
+		return "// Note: grep returned no matches (fallback)"
+
+	case "bash":
+		return "// Command execution failed (fallback - may need manual execution)"
+
+	default:
+		return fmt.Sprintf("// Tool %s unavailable (fallback)", toolName)
+	}
 }
 
 // ExtractToolCallsFromXML extracts tool calls from XML-formatted text

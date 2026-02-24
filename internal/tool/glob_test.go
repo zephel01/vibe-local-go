@@ -342,3 +342,80 @@ func TestGlobTool_Execute_SkipDirectories(t *testing.T) {
 	// With *.go pattern, we won't see the internal files in .git or node_modules anyway
 	// This test primarily ensures the glob tool doesn't crash when encountering skip directories
 }
+
+func TestGlobTool_Execute_RecursivePatternWithDoublestar(t *testing.T) {
+	tool := NewGlobTool()
+
+	// Create test directory structure
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	// Create .ts files in both root and subdirectory
+	files := []string{
+		filepath.Join(tmpDir, "root.ts"),
+		filepath.Join(tmpDir, "root.test.ts"),
+		filepath.Join(subDir, "nested.ts"),
+		filepath.Join(subDir, "nested.test.ts"),
+	}
+	for _, f := range files {
+		if err := os.WriteFile(f, []byte("test"), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+	}
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		pattern string
+		want    int // Minimum expected matches
+	}{
+		{
+			name:    "recursive wildcard for all .ts files",
+			pattern: "**/*.ts",
+			want:    4, // All 4 .ts files
+		},
+		{
+			name:    "recursive wildcard with .test.ts filter",
+			pattern: "**/*.test.ts",
+			want:    2, // Both .test.ts files
+		},
+		{
+			name:    "simple pattern for .ts files",
+			pattern: "*.ts",
+			want:    1, // Only root.ts in current directory
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := json.RawMessage(`{"pattern": "` + tt.pattern + `", "path": "` + tmpDir + `"}`)
+			result, err := tool.Execute(ctx, params)
+
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+
+			if result.IsError {
+				t.Errorf("expected success, got error: %s", result.Error)
+			}
+
+			// Check minimum expected matches
+			var foundCount int
+			lines := strings.Split(result.Output, "\n")
+			for _, line := range lines {
+				if strings.HasSuffix(line, ".ts") {
+					foundCount++
+				}
+			}
+
+			if foundCount < tt.want {
+				t.Errorf("Execute(%s) got %d matches, want at least %d", tt.pattern, foundCount, tt.want)
+			}
+		})
+	}
+}
+

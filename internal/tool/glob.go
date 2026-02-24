@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 const (
@@ -82,8 +84,9 @@ func (t *GlobTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 
 	// Convert glob pattern
 	matches, err := t.globSearch(searchPath, args.Pattern)
-	if err != nil {
-		return NewErrorResult(err), nil
+	if err != nil || len(matches) == 0 {
+		suggestedPattern := inferFilePattern(args.Pattern)
+		return NewErrorResult(fmt.Errorf("no files match '%s'. Try: bash ls %s", args.Pattern, suggestedPattern)), nil
 	}
 
 	// Format output
@@ -195,9 +198,8 @@ func (t *GlobTool) globRecursive(basePath, pattern string) ([]FileMatch, error) 
 
 // matchPattern checks if a path matches a glob pattern
 func matchPattern(path, pattern string) (bool, error) {
-	// Handle ** patterns
-	pattern = strings.ReplaceAll(pattern, "**", "*")
-	matched, err := filepath.Match(pattern, path)
+	// Use doublestar.Match for proper ** pattern support
+	matched, err := doublestar.Match(pattern, path)
 	return matched, err
 }
 
@@ -240,4 +242,29 @@ type FileMatch struct {
 	Path    string
 	ModTime time.Time
 	Size    int64
+}
+
+// inferFilePattern infers a simpler file pattern from the input pattern
+func inferFilePattern(pattern string) string {
+	if strings.Contains(pattern, "*") {
+		// Extract extension from pattern
+		if strings.Contains(pattern, ".") {
+			extStart := strings.LastIndex(pattern, ".")
+			if extStart > 0 {
+				ext := pattern[extStart:]
+				if strings.Contains(ext, "*") {
+					return "*" + strings.TrimSuffix(ext, "*")
+				}
+				return "*" + ext
+			}
+		}
+		return strings.TrimSuffix(pattern, "*") + "*"
+	}
+	if strings.Contains(pattern, ".") {
+		extStart := strings.LastIndex(pattern, ".")
+		if extStart > 0 {
+			return "*" + pattern[extStart:]
+		}
+	}
+	return "*.ts"
 }

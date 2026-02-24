@@ -3,12 +3,14 @@ package agent
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const (
 	// MaxSameToolRepeat is the maximum number of times to repeat the same (tool, args) pair
-	MaxSameToolRepeat = 5
+	MaxSameToolRepeat = 3
 	// LoopHistorySize is the number of recent tool calls to track
 	LoopHistorySize = 20
 )
@@ -83,6 +85,11 @@ func (ld *LoopDetector) DetectLoop() bool {
 		return true
 	}
 
+	// Check for similar bash commands (e.g., "npm test" and "npx jest" are similar test attempts)
+	if ld.hasSimilarBashLoop() {
+		return true
+	}
+
 	return false
 }
 
@@ -146,6 +153,56 @@ func (ld *LoopDetector) hasRepeatingPattern() bool {
 		return true
 	}
 
+	return false
+}
+
+// hasSimilarBashLoop checks if the agent is repeatedly calling bash with similar test/install commands
+// This catches patterns like: npm test → npx jest → npm test → npx jest (all failing)
+func (ld *LoopDetector) hasSimilarBashLoop() bool {
+	if len(ld.history) < 4 {
+		return false
+	}
+
+	// Count recent bash calls that are test/install related
+	testCommandCount := 0
+	for i := len(ld.history) - 1; i >= 0 && i >= len(ld.history)-8; i-- {
+		record := ld.history[i]
+		if record.ToolName == "bash" {
+			cmd := extractBashCommand(record.Arguments)
+			if isTestOrInstallCommand(cmd) {
+				testCommandCount++
+			}
+		}
+	}
+
+	// If 4+ similar test commands in recent history, it's a loop
+	return testCommandCount >= 4
+}
+
+// extractBashCommand extracts the command string from bash tool arguments JSON
+func extractBashCommand(arguments string) string {
+	var args struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return arguments
+	}
+	return args.Command
+}
+
+// isTestOrInstallCommand checks if a bash command is a test or install related command
+func isTestOrInstallCommand(cmd string) bool {
+	cmdLower := strings.ToLower(strings.TrimSpace(cmd))
+	testPatterns := []string{
+		"npm test", "npx jest", "yarn test", "pytest",
+		"go test", "cargo test", "make test",
+		"npm run test", "yarn run test",
+	}
+	for _, pattern := range testPatterns {
+		if strings.HasPrefix(cmdLower, pattern) || strings.Contains(cmdLower, pattern) {
+			return true
+		}
+	}
 	return false
 }
 

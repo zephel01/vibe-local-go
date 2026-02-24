@@ -20,7 +20,7 @@ type Tool interface {
 
 // Registry manages available tools
 type Registry struct {
-	tools      map[string]Tool
+	tools      map[string]*ToolConfig
 	schemaCache []*FunctionSchema
 	mu         sync.RWMutex
 }
@@ -28,26 +28,58 @@ type Registry struct {
 // NewRegistry creates a new tool registry
 func NewRegistry() *Registry {
 	return &Registry{
-		tools: make(map[string]Tool),
+		tools: make(map[string]*ToolConfig),
 	}
 }
 
-// Register registers a tool
+// Register registers a tool with default configuration
 func (r *Registry) Register(tool Tool) {
+	r.RegisterWithOptions(tool.Name(), tool)
+}
+
+// RegisterWithOptions registers a tool with custom options
+func (r *Registry) RegisterWithOptions(name string, tool Tool, opts ...ToolOption) {
+	cfg := DefaultToolConfig(name, tool)
+	cfg.ApplyOptions(opts...)
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.tools[tool.Name()] = tool
+	r.tools[name] = cfg
 	r.schemaCache = nil // Invalidate cache
 }
 
-// Get retrieves a tool by name
-func (r *Registry) Get(name string) (Tool, bool) {
+// Get retrieves a tool config by name
+func (r *Registry) Get(name string) (*ToolConfig, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	tool, ok := r.tools[name]
-	return tool, ok
+	cfg, ok := r.tools[name]
+	return cfg, ok
+}
+
+// GetTool retrieves just the tool (for backwards compatibility)
+func (r *Registry) GetTool(name string) (Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	cfg, ok := r.tools[name]
+	if !ok {
+		return nil, false
+	}
+	return cfg.Tool, true
+}
+
+// GetMetadata retrieves tool metadata by name
+func (r *Registry) GetMetadata(name string) (*ToolMetadata, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	cfg, ok := r.tools[name]
+	if !ok {
+		return nil, false
+	}
+	return cfg.Metadata, true
 }
 
 // Names returns all tool names
@@ -74,8 +106,8 @@ func (r *Registry) GetSchemas() []*FunctionSchema {
 
 	// Build schema cache
 	schemas := make([]*FunctionSchema, 0, len(r.tools))
-	for _, tool := range r.tools {
-		schemas = append(schemas, tool.Schema())
+	for _, cfg := range r.tools {
+		schemas = append(schemas, cfg.Tool.Schema())
 	}
 
 	// Cache the result
