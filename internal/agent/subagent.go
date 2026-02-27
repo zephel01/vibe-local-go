@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zephel01/vibe-local-go/internal/config"
 	"github.com/zephel01/vibe-local-go/internal/llm"
 	"github.com/zephel01/vibe-local-go/internal/session"
 	"github.com/zephel01/vibe-local-go/internal/tool"
@@ -201,7 +202,7 @@ func (sa *SubAgent) callLLM(ctx context.Context, messages []map[string]interface
 		Messages:    llmMessages,
 		Tools:       convertTools(tools),
 		Stream:      false,
-		Temperature: 0.7,
+		Temperature: config.DefaultTemperature,
 	}
 
 	// Call LLM via provider

@@ -27,6 +27,10 @@ type ConfigFile struct {
 	Temperature   float64 `json:"TEMPERATURE,omitempty"`
 	ContextWindow int     `json:"CONTEXT_WINDOW,omitempty"`
 
+	// Ollama options
+	OllamaNumCtx int `json:"OLLAMA_NUM_CTX,omitempty"`
+	OllamaNumGPU int `json:"OLLAMA_NUM_GPU,omitempty"`
+
 	// マルチプロバイダー設定
 	Provider  string                     `json:"PROVIDER,omitempty"`
 	Providers map[string]ProviderProfile `json:"PROVIDERS,omitempty"`
@@ -100,6 +104,12 @@ func (c *Config) applyConfigFile(cf *ConfigFile) {
 	}
 	if cf.ContextWindow > 0 {
 		c.ContextWindow = cf.ContextWindow
+	}
+	if cf.OllamaNumCtx > 0 {
+		c.OllamaNumCtx = cf.OllamaNumCtx
+	}
+	if cf.OllamaNumGPU > 0 {
+		c.OllamaNumGPU = cf.OllamaNumGPU
 	}
 
 	// --- プロバイダー設定 ---
@@ -176,6 +186,8 @@ func (c *Config) SaveConfigFile() error {
 	cf.MaxTokens = c.MaxTokens
 	cf.Temperature = c.Temperature
 	cf.ContextWindow = c.ContextWindow
+	cf.OllamaNumCtx = c.OllamaNumCtx
+	cf.OllamaNumGPU = c.OllamaNumGPU
 
 	// プロバイダー別プロファイルを更新
 	profile := cf.Providers[c.Provider]

@@ -79,9 +79,25 @@ func ClassifyError(err error) ErrorClassification {
 	}
 
 	// コンテキスト超過
+	// Explicit context window errors from LLM providers
 	if strings.Contains(errStr, "context length exceeds") ||
+		strings.Contains(errStr, "context length exceeded") ||
 		strings.Contains(errStr, "token limit") ||
-		strings.Contains(errStr, "context too large") {
+		strings.Contains(errStr, "context too large") ||
+		strings.Contains(errStr, "maximum context length") {
+		return ErrorClassContextWindow
+	}
+	// Implicit context window overflow: Ollama may return empty/truncated JSON
+	// when context is exceeded, resulting in parse failures
+	if strings.Contains(errStr, "possible context length exceeded") {
+		return ErrorClassContextWindow
+	}
+	// Truncated JSON from Ollama (unexpected end of JSON + empty/small body)
+	if strings.Contains(errStr, "unexpected end of JSON input") &&
+		strings.Contains(errStr, "failed to parse") {
+		return ErrorClassContextWindow
+	}
+	if strings.Contains(errStr, "empty response from LLM") {
 		return ErrorClassContextWindow
 	}
 

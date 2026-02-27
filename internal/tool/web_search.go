@@ -200,67 +200,65 @@ func (t *WebSearchTool) searchDuckDuckGo(ctx context.Context, query string, maxR
 func (t *WebSearchTool) parseSearchResults(html string, maxResults int) []SearchResult {
 	var results []SearchResult
 
-	// DuckDuckGo HTML format:
-	// <div class="result">
-	//   <a href="...">title...</a>
-	//   <a class="result__url" href="...">url...</a>
-	//   <a class="result__snippet">snippet...</a>
-	// </div>
+	// DuckDuckGo HTML format (as of 2025):
+	// <a class="result__a" href="//duckduckgo.com/l/?uddg=ENCODED_URL&rut=...">Title</a>
+	// <a class="result__snippet" href="...">Snippet with <b>bold</b> terms</a>
 
-	// Find all result divs
-	resultRegex := regexp.MustCompile(`<div\s+class="result[^"]*"[^>]*>(.*?)</div>`)
-	resultMatches := resultRegex.FindAllStringSubmatch(html, -1)
+	// Strategy: find all result__a links for titles/URLs, then find corresponding snippets
 
-	for _, match := range resultMatches {
+	// Extract titles and URLs from result__a links
+	titleRegex := regexp.MustCompile(`class="result__a"\s+href="([^"]*)"[^>]*>([^<]+)`)
+	titleMatches := titleRegex.FindAllStringSubmatch(html, -1)
+
+	// Extract snippets from result__snippet links
+	snippetRegex := regexp.MustCompile(`class="result__snippet"[^>]*>(.*?)</a>`)
+	snippetMatches := snippetRegex.FindAllStringSubmatch(html, -1)
+
+	for i, titleMatch := range titleMatches {
 		if len(results) >= maxResults {
 			break
 		}
 
-		resultHTML := match[1]
-
-		// Extract title
-		titleRegex := regexp.MustCompile(`<a\s+[^>]*href="([^"]*)"[^>]*>([^<]+)</a>`)
-		titleMatch := titleRegex.FindStringSubmatch(resultHTML)
 		if len(titleMatch) < 3 {
 			continue
 		}
 
-		url := titleMatch[1]
+		rawURL := titleMatch[1]
 		title := strings.TrimSpace(titleMatch[2])
 
-		// Extract snippet
-		snippetRegex := regexp.MustCompile(`<a\s+class="result__snippet"[^>]*>([^<]+)</a>`)
-		snippetMatch := snippetRegex.FindStringSubmatch(resultHTML)
+		// Extract the actual URL from DuckDuckGo's tracker redirect
+		// Format: //duckduckgo.com/l/?uddg=ENCODED_URL&rut=...
+		actualURL := t.extractDDGRedirectURL(rawURL)
+		if actualURL == "" {
+			continue
+		}
+
+		// Get corresponding snippet (if available)
 		snippet := ""
-		if len(snippetMatch) > 1 {
-			snippet = strings.TrimSpace(snippetMatch[1])
+		if i < len(snippetMatches) && len(snippetMatches[i]) > 1 {
+			// Strip HTML tags from snippet (e.g. <b>bold</b> terms)
+			snippet = t.stripHTMLTags(snippetMatches[i][1])
+			snippet = strings.TrimSpace(snippet)
 		}
 
 		// Clean up HTML entities
-		url = t.decodeHTMLEntities(url)
+		actualURL = t.decodeHTMLEntities(actualURL)
 		title = t.decodeHTMLEntities(title)
 		snippet = t.decodeHTMLEntities(snippet)
 
-		// Skip if URL is empty
-		if url == "" {
-			continue
-		}
-
-		// Filter out DuckDuckGo's own result tracker URLs
-		if strings.Contains(url, "duckduckgo.com") {
-			continue
-		}
-
 		results = append(results, SearchResult{
 			Title:   title,
-			URL:     url,
+			URL:     actualURL,
 			Snippet: snippet,
 		})
 	}
 
-	// If we didn't find enough results with the first regex, try a simpler pattern
+	// If we didn't find enough results with the primary parser, try fallback
 	if len(results) < 3 {
-		results = t.parseSearchResultsFallback(html, maxResults)
+		fallback := t.parseSearchResultsFallback(html, maxResults)
+		if len(fallback) > len(results) {
+			results = fallback
+		}
 	}
 
 	return results
@@ -269,6 +267,7 @@ func (t *WebSearchTool) parseSearchResults(html string, maxResults int) []Search
 // parseSearchResultsFallback is a fallback parser for search results
 func (t *WebSearchTool) parseSearchResultsFallback(html string, maxResults int) []SearchResult {
 	var results []SearchResult
+	seen := make(map[string]bool)
 
 	// Simpler pattern: look for all links with href that are likely URLs
 	linkRegex := regexp.MustCompile(`<a\s+[^>]*href="([^"]*)"[^>]*>([^<]+)</a>`)
@@ -281,6 +280,14 @@ func (t *WebSearchTool) parseSearchResultsFallback(html string, maxResults int) 
 
 		link := match[1]
 		text := strings.TrimSpace(match[2])
+
+		// Try to extract actual URL from DDG tracker redirect
+		if strings.Contains(link, "duckduckgo.com/l/") {
+			link = t.extractDDGRedirectURL(link)
+			if link == "" {
+				continue
+			}
+		}
 
 		// Skip DuckDuckGo internal links
 		if strings.Contains(link, "duckduckgo.com") || strings.Contains(link, "javascript:") {
@@ -306,6 +313,12 @@ func (t *WebSearchTool) parseSearchResultsFallback(html string, maxResults int) 
 			continue
 		}
 
+		// Deduplicate
+		if seen[link] {
+			continue
+		}
+		seen[link] = true
+
 		results = append(results, SearchResult{
 			Title:   text,
 			URL:     link,
@@ -314,6 +327,45 @@ func (t *WebSearchTool) parseSearchResultsFallback(html string, maxResults int) 
 	}
 
 	return results
+}
+
+// extractDDGRedirectURL extracts the actual URL from DuckDuckGo's tracker redirect URL
+// Input format: //duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com&rut=...
+func (t *WebSearchTool) extractDDGRedirectURL(rawURL string) string {
+	// First decode HTML entities (e.g. &amp; -> &)
+	rawURL = t.decodeHTMLEntities(rawURL)
+
+	// Look for uddg parameter
+	uddgIdx := strings.Index(rawURL, "uddg=")
+	if uddgIdx < 0 {
+		return ""
+	}
+
+	encoded := rawURL[uddgIdx+5:]
+
+	// Trim at the next & parameter separator
+	if ampIdx := strings.Index(encoded, "&"); ampIdx >= 0 {
+		encoded = encoded[:ampIdx]
+	}
+
+	// URL-decode the value
+	decoded, err := url.QueryUnescape(encoded)
+	if err != nil {
+		return ""
+	}
+
+	// Validate it's an HTTP(S) URL
+	if !strings.HasPrefix(decoded, "http://") && !strings.HasPrefix(decoded, "https://") {
+		return ""
+	}
+
+	return decoded
+}
+
+// stripHTMLTags removes HTML tags from a string, preserving text content
+func (t *WebSearchTool) stripHTMLTags(s string) string {
+	tagRegex := regexp.MustCompile(`<[^>]*>`)
+	return tagRegex.ReplaceAllString(s, "")
 }
 
 // readResponseBody reads and limits response body size

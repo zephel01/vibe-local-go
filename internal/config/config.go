@@ -6,7 +6,7 @@ import "os"
 const (
 	DefaultOllamaHost    = "http://localhost:11434"
 	DefaultMaxTokens     = 8192
-	DefaultTemperature  = 0.7
+	DefaultTemperature  = 0.2
 	DefaultContextWindow = 32768
 )
 
@@ -36,7 +36,9 @@ type Config struct {
 	Provider string // "ollama" (default), "openrouter", "openai", "anthropic", "google", etc.
 
 	// Ollama settings
-	OllamaHost string
+	OllamaHost    string
+	OllamaNumCtx  int // Ollama num_ctx override (0 = use Ollama default)
+	OllamaNumGPU  int // Ollama num_gpu override (-1 = not set, 0+ = explicit)
 
 	// Cloud provider API keys (provider key → API key)
 	CloudAPIKeys map[string]string
@@ -64,6 +66,9 @@ type Config struct {
 	// VenvDir — 仮想環境のディレクトリ名（デフォルト: .venv）
 	VenvDir string
 
+	// Prompt hints
+	IncludePythonHints bool // Python venv instructions をシステムプロンプトに含めるか
+
 	// Platform-specific
 	OS   string // "darwin", "linux", "windows"
 	Arch string // "amd64", "arm64"
@@ -83,6 +88,8 @@ func DefaultConfig() *Config {
 		Temperature:   DefaultTemperature,
 		ContextWindow: DefaultContextWindow,
 		OllamaHost:    DefaultOllamaHost,
+		OllamaNumCtx:  0,
+		OllamaNumGPU:  -1, // -1 = not set
 		CloudAPIKeys:  make(map[string]string),
 		VenvDir:       ".venv",
 		OS:            detectOS(),

@@ -18,7 +18,7 @@ import (
 
 const (
 	// MaxIterations is the maximum number of agent iterations
-	MaxIterations = 50
+	MaxIterations = 30
 	// MaxRetries is the maximum number of retries for failed tool calls
 	MaxRetries = 2
 	// ToolExecutionTimeout is the timeout for tool execution
@@ -44,6 +44,7 @@ type Agent struct {
 	scriptValidationCount int // Track number of script validation attempts
 	autoTestEnabled       bool // Enable automatic test execution after file edits
 	planMode              bool // When true, reject write_file/edit_file/bash
+	cachedLLMTools        []llm.ToolDef // Cached tool schema conversion (computed once)
 }
 
 // NewAgent creates a new agent
@@ -56,6 +57,9 @@ func NewAgent(
 	term *ui.Terminal,
 	cfg *config.Config,
 ) *Agent {
+	// Pre-convert tool schemas once (they don't change during a session)
+	cachedTools := convertTools(registry.GetSchemas())
+
 	return &Agent{
 		provider:        provider,
 		registry:        registry,
@@ -69,6 +73,7 @@ func NewAgent(
 		statusLine:      ui.NewStatusLineUpdater(term),
 		autoTestEnabled: false, // Disabled by default, enable with /autotest on
 		planMode:        false, // Disabled by default, enable with /plan on
+		cachedLLMTools:  cachedTools,
 	}
 }
 
@@ -128,7 +133,7 @@ func (a *Agent) Run(ctx context.Context, userInput string) error {
 
 		// Call LLM (ステータス行表示)
 		a.statusLine.Start("💭 Thinking...")
-		response, err := a.callLLM(ctx, messages, tools)
+		response, err := a.callLLM(ctx, messages, tools, iteration)
 		a.statusLine.Stop()
 		if err != nil {
 			return fmt.Errorf("LLM call failed: %w", err)
@@ -220,8 +225,22 @@ func (a *Agent) Run(ctx context.Context, userInput string) error {
 	return nil
 }
 
+// dynamicMaxTokens returns MaxTokens adjusted by iteration count.
+// Early iterations get full tokens for initial code generation;
+// later iterations need fewer tokens for small fixes.
+func dynamicMaxTokens(base int, iteration int) int {
+	switch {
+	case iteration <= 3:
+		return base // Full: initial code generation
+	case iteration <= 10:
+		return base / 2 // Half: refinement phase
+	default:
+		return base / 4 // Quarter: minor fixes only
+	}
+}
+
 // callLLM calls the LLM with the current messages
-func (a *Agent) callLLM(ctx context.Context, messages []map[string]interface{}, tools []*tool.FunctionSchema) (*ChatResponse, error) {
+func (a *Agent) callLLM(ctx context.Context, messages []map[string]interface{}, tools []*tool.FunctionSchema, iteration int) (*ChatResponse, error) {
 	// Convert messages to llm.Message format
 	llmMessages := make([]llm.Message, len(messages))
 	for i, msg := range messages {
@@ -232,14 +251,21 @@ func (a *Agent) callLLM(ctx context.Context, messages []map[string]interface{}, 
 		}
 	}
 
-	// Build request
+	// Build request with dynamic MaxTokens based on iteration
+	maxTokens := dynamicMaxTokens(a.config.MaxTokens, iteration)
 	req := &llm.ChatRequest{
 		Model:       a.config.Model,
 		Messages:    llmMessages,
-		Tools:       convertTools(tools),
+		Tools:       a.cachedLLMTools,
 		Stream:      false,
-		Temperature: 0.7,
-		MaxTokens:   a.config.MaxTokens,
+		Temperature: a.config.Temperature,
+		MaxTokens:   maxTokens,
+	}
+
+	// Ollama options (num_ctx, num_gpu etc.)
+	ollamaOpts := buildOllamaOptions(a.config)
+	if len(ollamaOpts) > 0 {
+		req.Options = ollamaOpts
 	}
 
 	// Call LLM via provider
@@ -684,6 +710,16 @@ func (a *Agent) GetSession() *session.Session {
 }
 
 // Helper function to safely get string from map
+// buildOllamaOptions builds Ollama-specific options from config
+// Note: num_ctx は OllamaProvider の自動エスカレーションが管理するため、ここでは設定しない
+func buildOllamaOptions(cfg *config.Config) map[string]interface{} {
+	opts := make(map[string]interface{})
+	if cfg.OllamaNumGPU >= 0 {
+		opts["num_gpu"] = cfg.OllamaNumGPU
+	}
+	return opts
+}
+
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {

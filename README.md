@@ -242,6 +242,8 @@ vibe --list-sessions
 | `--max-tokens <n>` | | 最大出力トークン数（デフォルト: 8192） |
 | `--temperature <f>` | | サンプリング温度（デフォルト: 0.7） |
 | `--context-window <n>` | | コンテキストウィンドウサイズ（デフォルト: 32768） |
+| `--num-ctx <n>` | | Ollama num_ctx (KVキャッシュサイズ、メモリ節約用) |
+| `--num-gpu <n>` | | Ollama num_gpu (GPUレイヤー数) |
 | `--version` | | バージョンを表示 |
 
 ### 例
@@ -454,6 +456,8 @@ vibe-local-go/
     "MAX_TOKENS": 8192,
     "TEMPERATURE": 0.7,
     "CONTEXT_WINDOW": 32768,
+    "OLLAMA_NUM_CTX": 8192,
+    "OLLAMA_NUM_GPU": 99,
     "PROVIDERS": {
         "ollama": {
             "type": "ollama",
@@ -474,6 +478,17 @@ vibe-local-go/
 }
 ```
 
+| キー | 型 | 説明 |
+|------|------|------|
+| `PROVIDER` | string | アクティブプロバイダー |
+| `MODEL` | string | モデル名 |
+| `MAX_TOKENS` | int | 最大出力トークン数 |
+| `TEMPERATURE` | float | サンプリング温度 (0.0-2.0) |
+| `CONTEXT_WINDOW` | int | コンテキストウィンドウサイズ |
+| `OLLAMA_NUM_CTX` | int | Ollama num_ctx (KVキャッシュサイズ、0=Ollamaデフォルト) |
+| `OLLAMA_NUM_GPU` | int | Ollama num_gpu (GPUレイヤー数) |
+| `PROVIDERS` | object | プロバイダー別プロファイル |
+
 ### 環境変数（プロバイダーのAPIキー）
 
 | 変数 | 説明 |
@@ -493,6 +508,8 @@ vibe-local-go/
 | `ZHIPU_API_KEY` | 智谱AI (中国版) APIキー |
 | `MOONSHOT_API_KEY` | Moonshot (Kimi) APIキー |
 | `OLLAMA_HOST` | Ollama APIエンドポイントURL |
+| `OLLAMA_NUM_CTX` | Ollama num_ctx (KVキャッシュサイズ、メモリ節約用) |
+| `OLLAMA_NUM_GPU` | Ollama num_gpu (GPUレイヤー数) |
 | `VIBE_LOCAL_DEBUG` | `1` でデバッグログ有効化 |
 
 ## セキュリティ

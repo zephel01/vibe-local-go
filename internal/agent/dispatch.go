@@ -14,7 +14,7 @@ import (
 
 const (
 	// MaxParallelTools is the maximum number of parallel tool executions
-	MaxParallelTools = 5
+	MaxParallelTools = 10
 )
 
 // Dispatcher handles tool execution dispatching

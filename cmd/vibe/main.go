@@ -100,6 +100,8 @@ var (
 	flagAutoVenv         bool
 	flagVenvDir          string
 	flagPermissionCheck  bool
+	flagNumCtx           int
+	flagNumGPU           int
 )
 
 func init() {
@@ -121,6 +123,8 @@ func init() {
 	flag.BoolVar(&flagAutoVenv, "auto-venv", false, "Auto-create and activate .venv for Python commands")
 	flag.StringVar(&flagVenvDir, "venv-dir", ".venv", "Virtual environment directory name")
 	flag.BoolVar(&flagPermissionCheck, "permission-check", false, "Show permission check dialog at startup")
+	flag.IntVar(&flagNumCtx, "num-ctx", 0, "Ollama num_ctx (context size for KV cache, 0=default)")
+	flag.IntVar(&flagNumGPU, "num-gpu", -1, "Ollama num_gpu (number of GPU layers, -1=not set)")
 }
 
 func main() {
@@ -320,6 +324,12 @@ func loadConfig() *config.Config {
 	if flagContextWindow > 0 {
 		cfg.ContextWindow = flagContextWindow
 	}
+	if flagNumCtx > 0 {
+		cfg.OllamaNumCtx = flagNumCtx
+	}
+	if flagNumGPU >= 0 {
+		cfg.OllamaNumGPU = flagNumGPU
+	}
 	if flagAutoConfirm {
 		cfg.AutoApprove = true
 	}
@@ -388,7 +398,11 @@ func createProvider(cfg *config.Config) llm.LLMProvider {
 		}
 
 		if cfg.Provider == "ollama" {
-			return llm.NewOllamaProvider(host, cfg.Model)
+			p := llm.NewOllamaProvider(host, cfg.Model)
+			if cfg.OllamaNumCtx > 0 {
+				p.SetNumCtx(cfg.OllamaNumCtx)
+			}
+			return p
 		}
 		if cfg.Provider == "lm-studio" {
 			return llm.NewLMStudioProvider(host, cfg.Model)
@@ -408,7 +422,11 @@ func createProvider(cfg *config.Config) llm.LLMProvider {
 		return llm.NewOpenAICompatProvider(normalizedHost+"/v1", "", cfg.Model, info)
 	default:
 		// デフォルト: Ollama
-		return llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
+		p := llm.NewOllamaProvider(cfg.OllamaHost, cfg.Model)
+		if cfg.OllamaNumCtx > 0 {
+			p.SetNumCtx(cfg.OllamaNumCtx)
+		}
+		return p
 	}
 }
 
@@ -949,6 +967,12 @@ func registerConfigCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal
 
 				if cfg.Provider == "ollama" {
 					terminal.Printf("  OllamaHost:   %s\n", cfg.OllamaHost)
+					if cfg.OllamaNumCtx > 0 {
+						terminal.Printf("  num_ctx:      %d\n", cfg.OllamaNumCtx)
+					}
+					if cfg.OllamaNumGPU >= 0 {
+						terminal.Printf("  num_gpu:      %d\n", cfg.OllamaNumGPU)
+					}
 				} else {
 					apiKey := getAPIKeyForProvider(cfg)
 					if apiKey != "" {
@@ -2318,6 +2342,7 @@ func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRout
 		EngineHost:    hostDisplay,
 		CWD:           cwd,
 		ChainInfo:     chainInfo,
+		OllamaNumCtx:  cfg.OllamaNumCtx,
 	}
 	terminal.ShowBanner(opts)
 }
@@ -2403,7 +2428,7 @@ func runAgent(ctx context.Context, agt *agent.Agent, cfg *config.Config, termina
 			contextUsagePct := agt.GetContextUsagePercent()
 			prompt := ui.FormatPrompt(contextUsagePct)
 
-			input, err := terminal.ReadLine(prompt)
+			input, err := terminal.ReadMultilineAware(prompt)
 			if err != nil {
 				if err == io.EOF {
 					shutdownMgr.Shutdown("EOF")

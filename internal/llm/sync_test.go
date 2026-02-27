@@ -159,6 +159,66 @@ func TestChatSync_MalformedJSON(t *testing.T) {
 	}
 }
 
+func TestChatSync_EmptyResponse_ClassifiedAsContextWindow(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate Ollama returning HTTP 200 with empty body (context overflow)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		// Write nothing — empty body
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	ctx := context.Background()
+
+	req := &ChatRequest{
+		Model:    "test-model",
+		Messages: []Message{{Role: "user", Content: "test"}},
+	}
+
+	_, err := client.ChatSync(ctx, req)
+	if err == nil {
+		t.Fatal("expected error for empty response, got nil")
+	}
+	if !strings.Contains(err.Error(), "empty response") {
+		t.Errorf("error = %v, want 'empty response'", err.Error())
+	}
+	// Verify it's classified as context window error for auto-escalation
+	if ClassifyError(err) != ErrorClassContextWindow {
+		t.Errorf("ClassifyError() = %v, want %v", ClassifyError(err), ErrorClassContextWindow)
+	}
+}
+
+func TestChatSync_TruncatedJSON_ClassifiedAsContextWindow(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate Ollama returning HTTP 200 with truncated JSON (context overflow)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"test","choices":[{"message":{"role":"assistant","content":"he`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	ctx := context.Background()
+
+	req := &ChatRequest{
+		Model:    "test-model",
+		Messages: []Message{{Role: "user", Content: "test"}},
+	}
+
+	// Truncated JSON should be salvaged by balanceBrackets, so it may succeed
+	// If it fails, verify it's classified as context window
+	_, err := client.ChatSync(ctx, req)
+	if err != nil {
+		classification := ClassifyError(err)
+		if classification != ErrorClassContextWindow {
+			t.Errorf("ClassifyError() = %v, want %v for truncated JSON error: %v",
+				classification, ErrorClassContextWindow, err)
+		}
+	}
+	// If salvageJSON succeeded, that's also acceptable behavior
+}
+
 func TestReadResponseBody_Success(t *testing.T) {
 	testData := []byte("test response data")
 	body := io.NopCloser(bytes.NewReader(testData))

@@ -65,7 +65,7 @@ func TestSubAgent_WriteEnabled(t *testing.T) {
 	}
 }
 
-func TestIsWriteTool(t *testing.T) {
+func TestIsWriteTool_SubAgent(t *testing.T) {
 	// isWriteTool is defined in dispatch.go: write_file, edit_file, bash
 	tests := []struct {
 		name     string

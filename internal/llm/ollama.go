@@ -12,11 +12,17 @@ import (
 	"time"
 )
 
+// DefaultNumCtxStages num_ctx 自動エスカレーションのデフォルト段階
+var DefaultNumCtxStages = []int{8192, 16384, 32768, 65536}
+
 // OllamaProvider Ollama固有機能付きプロバイダー
 // OpenAI互換APIでチャット + Ollama APIでモデル管理
 type OllamaProvider struct {
 	*OpenAICompatProvider
-	ollamaURL string // Ollama API用（/api/...）
+	ollamaURL     string // Ollama API用（/api/...）
+	numCtxStages  []int  // num_ctx エスカレーション段階
+	autoEscalate  bool   // 自動エスカレーション有効/無効
+	currentNumCtx int    // 現在使用中の num_ctx（0=Ollama任せ）
 }
 
 // normalizeBaseURL ベースURLの末尾 /v1 や / を除去してホストのみにする
@@ -49,8 +55,146 @@ func NewOllamaProvider(host, model string) *OllamaProvider {
 
 	return &OllamaProvider{
 		OpenAICompatProvider: NewOpenAICompatProvider(host+"/v1", "", model, info),
-		ollamaURL:           host,
+		ollamaURL:            host,
+		numCtxStages:         DefaultNumCtxStages,
+		autoEscalate:         true,
 	}
+}
+
+// SetNumCtx 固定の num_ctx を設定（自動エスカレーションはその値以上から開始）
+func (o *OllamaProvider) SetNumCtx(numCtx int) {
+	o.currentNumCtx = numCtx
+}
+
+// SetAutoEscalate 自動エスカレーションの有効/無効を設定
+func (o *OllamaProvider) SetAutoEscalate(enabled bool) {
+	o.autoEscalate = enabled
+}
+
+// SetNumCtxStages エスカレーション段階をカスタマイズ
+func (o *OllamaProvider) SetNumCtxStages(stages []int) {
+	o.numCtxStages = stages
+}
+
+// GetCurrentNumCtx 現在の num_ctx を返す
+func (o *OllamaProvider) GetCurrentNumCtx() int {
+	return o.currentNumCtx
+}
+
+// Chat Ollama固有の Chat 実装（num_ctx 自動エスカレーション付き）
+//
+// 動作モード:
+//   - --num-ctx 指定時: 指定値で開始 → context exceeded なら段階的に引き上げ
+//   - --num-ctx 未指定時: num_ctx を送らない（Ollamaデフォルト） → context exceeded なら段階的に引き上げ
+func (o *OllamaProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	// 自動エスカレーション無効 or 段階未設定なら親のChatをそのまま呼ぶ
+	if !o.autoEscalate || len(o.numCtxStages) == 0 {
+		return o.chatWithNumCtx(ctx, req, o.currentNumCtx)
+	}
+
+	// まず現在の num_ctx（0ならOllamaデフォルト）で試行
+	resp, err := o.chatWithNumCtx(ctx, req, o.currentNumCtx)
+	if err == nil {
+		return resp, nil
+	}
+
+	// コンテキスト超過以外のエラーはそのまま返す
+	if ClassifyError(err) != ErrorClassContextWindow {
+		return nil, err
+	}
+
+	// コンテキスト超過 → エスカレーション段階で順にリトライ
+	lastErr := err
+	for _, numCtx := range o.buildEscalationStages() {
+		resp, err := o.chatWithNumCtx(ctx, req, numCtx)
+		if err == nil {
+			o.currentNumCtx = numCtx
+			return resp, nil
+		}
+
+		if ClassifyError(err) != ErrorClassContextWindow {
+			return nil, err
+		}
+		lastErr = err
+	}
+
+	return nil, fmt.Errorf("context exceeded all escalation stages: %w", lastErr)
+}
+
+// ChatStream Ollama固有の ChatStream 実装（num_ctx 自動エスカレーション付き）
+func (o *OllamaProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
+	// 自動エスカレーション無効なら親のChatStreamをそのまま呼ぶ
+	if !o.autoEscalate || len(o.numCtxStages) == 0 {
+		o.applyNumCtx(req, o.currentNumCtx)
+		return o.OpenAICompatProvider.ChatStream(ctx, req)
+	}
+
+	// まず現在の num_ctx で試行
+	o.applyNumCtx(req, o.currentNumCtx)
+	ch, err := o.OpenAICompatProvider.ChatStream(ctx, req)
+	if err == nil {
+		return ch, nil
+	}
+
+	if ClassifyError(err) != ErrorClassContextWindow {
+		return nil, err
+	}
+
+	// コンテキスト超過 → エスカレーション
+	lastErr := err
+	for _, numCtx := range o.buildEscalationStages() {
+		o.applyNumCtx(req, numCtx)
+		ch, err := o.OpenAICompatProvider.ChatStream(ctx, req)
+		if err == nil {
+			o.currentNumCtx = numCtx
+			return ch, nil
+		}
+
+		if ClassifyError(err) != ErrorClassContextWindow {
+			return nil, err
+		}
+		lastErr = err
+	}
+
+	return nil, fmt.Errorf("context exceeded all escalation stages: %w", lastErr)
+}
+
+// chatWithNumCtx 指定 num_ctx で Chat を実行
+func (o *OllamaProvider) chatWithNumCtx(ctx context.Context, req *ChatRequest, numCtx int) (*ChatResponse, error) {
+	o.applyNumCtx(req, numCtx)
+	return o.OpenAICompatProvider.Chat(ctx, req)
+}
+
+// applyNumCtx リクエストに num_ctx を設定
+func (o *OllamaProvider) applyNumCtx(req *ChatRequest, numCtx int) {
+	if numCtx <= 0 {
+		return
+	}
+	if req.Options == nil {
+		req.Options = make(map[string]interface{})
+	}
+	req.Options["num_ctx"] = numCtx
+}
+
+// buildEscalationStages 現在の num_ctx より大きいエスカレーション段階を構築
+// Chat() で currentNumCtx が既に失敗した後に呼ばれるため、それより大きい値のみ返す
+func (o *OllamaProvider) buildEscalationStages() []int {
+	startFrom := o.currentNumCtx
+
+	// currentNumCtx 未設定（Ollamaデフォルトで失敗した場合）→ 全段階を試す
+	if startFrom <= 0 {
+		return o.numCtxStages
+	}
+
+	// startFrom より大きい段階のみ返す（startFrom は既に失敗済み）
+	stages := make([]int, 0)
+	for _, stage := range o.numCtxStages {
+		if stage > startFrom {
+			stages = append(stages, stage)
+		}
+	}
+
+	return stages
 }
 
 // FetchLocalProviderModels ローカルプロバイダーからモデルリストを取得

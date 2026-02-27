@@ -597,6 +597,32 @@ func TestParseChatResponseWithObjectArgs(t *testing.T) {
 	}
 }
 
+func TestDynamicMaxTokens(t *testing.T) {
+	base := 8192
+
+	tests := []struct {
+		name      string
+		iteration int
+		expected  int
+	}{
+		{"iteration 1 - full tokens", 1, 8192},
+		{"iteration 3 - full tokens", 3, 8192},
+		{"iteration 4 - half tokens", 4, 4096},
+		{"iteration 10 - half tokens", 10, 4096},
+		{"iteration 11 - quarter tokens", 11, 2048},
+		{"iteration 30 - quarter tokens", 30, 2048},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := dynamicMaxTokens(base, tt.iteration)
+			if result != tt.expected {
+				t.Errorf("dynamicMaxTokens(%d, %d) = %d, want %d", base, tt.iteration, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestLoopDetectorStuckLoop(t *testing.T) {
 	agent := createSimpleTestAgent()
 

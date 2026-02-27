@@ -12,6 +12,7 @@ import (
 )
 
 // ReadLine reads a line from stdin with interactive editing (history, tab completion)
+// Now supports multi-line input via Ctrl+J / Alt+Enter
 func (t *Terminal) ReadLine(prompt string) (string, error) {
 	line, err := t.lineEditor.ReadLine(prompt)
 	if err != nil {
@@ -22,6 +23,75 @@ func (t *Terminal) ReadLine(prompt string) (string, error) {
 	}
 	line = strings.TrimSpace(line)
 	return line, nil
+}
+
+// ReadMultilineAware reads input with multi-line support:
+// 1. Ctrl+J / Alt+Enter: inline newline in LineEditor (primary method)
+// 2. """: triple-quote block mode (start with """, end with """)
+// 3. \: backslash continuation (line ending with \ continues to next line)
+func (t *Terminal) ReadMultilineAware(prompt string) (string, error) {
+	line, err := t.ReadLine(prompt)
+	if err != nil {
+		return "", err
+	}
+
+	// LineEditor already handles Ctrl+J / Alt+Enter for inline newlines.
+	// The returned line may contain \n characters.
+
+	// Check for """ triple-quote mode
+	if strings.HasPrefix(line, `"""`) {
+		rest := strings.TrimPrefix(line, `"""`)
+		if strings.TrimSpace(rest) == "" {
+			// Read multiline block until """
+			t.PrintColored(ColorGray, "  (\"\"\" で終了)\n")
+			return t.readTripleQuoteBlock()
+		}
+		// """ with inline content: read until closing """
+		var lines []string
+		if rest != "" {
+			lines = append(lines, rest)
+		}
+		t.PrintColored(ColorGray, "  (\"\"\" で終了)\n")
+		for {
+			contLine, err := t.ReadLine("... ")
+			if err != nil {
+				return "", err
+			}
+			if contLine == `"""` {
+				break
+			}
+			lines = append(lines, contLine)
+		}
+		return strings.Join(lines, "\n"), nil
+	}
+
+	// Check for backslash continuation
+	for strings.HasSuffix(line, `\`) {
+		line = strings.TrimSuffix(line, `\`)
+		contLine, err := t.ReadLine("... ")
+		if err != nil {
+			return "", err
+		}
+		line = line + "\n" + contLine
+	}
+
+	return line, nil
+}
+
+// readTripleQuoteBlock reads lines until a standalone """ is entered
+func (t *Terminal) readTripleQuoteBlock() (string, error) {
+	var lines []string
+	for {
+		line, err := t.ReadLine("... ")
+		if err != nil {
+			return "", err
+		}
+		if line == `"""` {
+			break
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 // ReadLineSimple 従来のシンプルな行読み取り（セットアップ等で使用）

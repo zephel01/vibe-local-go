@@ -82,4 +82,16 @@ func (c *Config) ParseEnv() {
 			c.ContextWindow = n
 		}
 	}
+
+	// Ollama options from environment variables
+	if v := os.Getenv("OLLAMA_NUM_CTX"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.OllamaNumCtx = n
+		}
+	}
+	if v := os.Getenv("OLLAMA_NUM_GPU"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.OllamaNumGPU = n
+		}
+	}
 }

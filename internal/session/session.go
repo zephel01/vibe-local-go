@@ -49,6 +49,10 @@ type Session struct {
 	SystemPrompt   string
 	TokenEstimate  int
 	mu             sync.RWMutex
+
+	// Cache for GetMessagesForLLM (avoid O(n) rebuild every call)
+	cachedLLMMessages []map[string]interface{}
+	llmCacheDirty     bool // true when messages changed since last cache build
 }
 
 // NewSession creates a new session
@@ -58,6 +62,7 @@ func NewSession(id string, systemPrompt string) *Session {
 		Messages:      make([]Message, 0, 100),
 		SystemPrompt:  systemPrompt,
 		TokenEstimate: len(systemPrompt), // Rough estimate
+		llmCacheDirty: true,
 	}
 }
 
@@ -72,6 +77,7 @@ func (s *Session) AddUserMessage(content string) {
 	}
 
 	s.Messages = append(s.Messages, msg)
+	s.llmCacheDirty = true
 	s.compactIfNeeded()
 }
 
@@ -86,6 +92,7 @@ func (s *Session) AddAssistantMessage(content string) {
 	}
 
 	s.Messages = append(s.Messages, msg)
+	s.llmCacheDirty = true
 	s.compactIfNeeded()
 }
 
@@ -101,6 +108,7 @@ func (s *Session) AddToolCall(toolCalls []ToolCall) {
 	}
 
 	s.Messages = append(s.Messages, msg)
+	s.llmCacheDirty = true
 	s.compactIfNeeded()
 }
 
@@ -119,6 +127,7 @@ func (s *Session) AddToolResults(results []ToolResult) {
 		s.Messages = append(s.Messages, msg)
 	}
 
+	s.llmCacheDirty = true
 	s.compactIfNeeded()
 }
 
@@ -138,12 +147,17 @@ func (s *Session) GetMessages() []Message {
 	return messages
 }
 
-// GetMessagesForLLM returns messages formatted for LLM API
+// GetMessagesForLLM returns messages formatted for LLM API.
+// Uses a dirty-flag cache to avoid O(n) rebuild when messages haven't changed.
 func (s *Session) GetMessagesForLLM() []map[string]interface{} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	// Start with system prompt if present
+	if !s.llmCacheDirty && s.cachedLLMMessages != nil {
+		return s.cachedLLMMessages
+	}
+
+	// Rebuild cache
 	messages := make([]map[string]interface{}, 0, len(s.Messages)+1)
 
 	if s.SystemPrompt != "" {
@@ -153,19 +167,16 @@ func (s *Session) GetMessagesForLLM() []map[string]interface{} {
 		})
 	}
 
-	// Add chat messages
 	for _, msg := range s.Messages {
 		msgMap := map[string]interface{}{
 			"role":    string(msg.Role),
 			"content": msg.Content,
 		}
 
-		// Add tool calls if present
 		if len(msg.ToolCalls) > 0 {
 			msgMap["tool_calls"] = msg.ToolCalls
 		}
 
-		// Add tool ID if present
 		if msg.ToolID != "" {
 			msgMap["tool_call_id"] = msg.ToolID
 		}
@@ -173,6 +184,8 @@ func (s *Session) GetMessagesForLLM() []map[string]interface{} {
 		messages = append(messages, msgMap)
 	}
 
+	s.cachedLLMMessages = messages
+	s.llmCacheDirty = false
 	return messages
 }
 
@@ -213,6 +226,8 @@ func (s *Session) Clear() {
 
 	s.Messages = make([]Message, 0, 100)
 	s.TokenEstimate = len(s.SystemPrompt)
+	s.llmCacheDirty = true
+	s.cachedLLMMessages = nil
 }
 
 // compactIfNeeded compacts messages if we're approaching limits
@@ -237,6 +252,8 @@ func (s *Session) compact() {
 		if s.TokenEstimate < 0 {
 			s.TokenEstimate = 0
 		}
+		s.llmCacheDirty = true
+		s.cachedLLMMessages = nil
 	}
 }
 
@@ -246,6 +263,7 @@ func (s *Session) SetSystemPrompt(prompt string) {
 	defer s.mu.Unlock()
 
 	s.SystemPrompt = prompt
+	s.llmCacheDirty = true
 }
 
 // GetLastNMessages returns the last N messages
@@ -298,6 +316,8 @@ func (s *Session) FromJSON(data []byte) error {
 	s.Messages = session.Messages
 	s.SystemPrompt = session.SystemPrompt
 	s.TokenEstimate = session.TokenEstimate
+	s.llmCacheDirty = true
+	s.cachedLLMMessages = nil
 
 	return nil
 }

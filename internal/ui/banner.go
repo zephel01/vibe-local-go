@@ -22,6 +22,7 @@ type BannerOptions struct {
 	EngineHost    string // 接続先URL
 	CWD           string
 	ChainInfo     string // プロバイダーチェーン情報（例: "Ollama→main / OpenAI→fallback"）
+	OllamaNumCtx  int    // Ollama num_ctx override (0=default)
 }
 
 // ShowBanner 起動時バナーを表示（Python版準拠）
@@ -78,7 +79,11 @@ func (t *Terminal) ShowBanner(opts BannerOptions) {
 		ctxTokens = 8192
 	}
 	t.PrintColored(ColorCyan, "  💾 RAM    ")
-	t.Printf("%.0fGB (ctx: %d tokens)\n", opts.MemoryGB, ctxTokens)
+	if opts.OllamaNumCtx > 0 {
+		t.Printf("%.0fGB (ctx: %d tokens, num_ctx: %d)\n", opts.MemoryGB, ctxTokens, opts.OllamaNumCtx)
+	} else {
+		t.Printf("%.0fGB (ctx: %d tokens)\n", opts.MemoryGB, ctxTokens)
+	}
 
 	// CWD
 	cwd := opts.CWD
@@ -188,7 +193,7 @@ func (t *Terminal) ShowPermissionCheck() (bool, error) {
 
 // ShowWelcome ウェルカムメッセージ＋ヘルプヒントを表示
 func (t *Terminal) ShowWelcome(version string) {
-	t.PrintColored(ColorGray, "  /help commands • Ctrl+C to interrupt (press twice to quit) • \"\"\" for multiline\n")
+	t.PrintColored(ColorGray, "  /help commands • Ctrl+C to interrupt • Ctrl+J newline • \"\"\" multiline block\n")
 	t.PrintColored(ColorGreen, "  First time? Try typing: \"create a hello world in Python\"\n")
 	t.PrintColored(ColorGray, "  Type /help for commands, or just ask anything in natural language.\n")
 	t.Println("")

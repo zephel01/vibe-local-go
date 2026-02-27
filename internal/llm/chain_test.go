@@ -22,7 +22,9 @@ func (m *mockChainProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatRe
 	if m.chatResp != nil {
 		return m.chatResp, nil
 	}
-	return &ChatResponse{Content: "ok from " + m.name}, nil
+	return &ChatResponse{
+		Choices: []Choice{{Message: Message{Role: "assistant", Content: "ok from " + m.name}}},
+	}, nil
 }
 
 func (m *mockChainProvider) ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error) {
@@ -68,8 +70,8 @@ func TestProviderChain_SingleProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.Content != "ok from solo" {
-		t.Errorf("expected 'ok from solo', got '%s'", resp.Content)
+	if resp.Choices[0].Message.Content != "ok from solo" {
+		t.Errorf("expected 'ok from solo', got '%s'", resp.Choices[0].Message.Content)
 	}
 }
 
@@ -83,8 +85,8 @@ func TestProviderChain_FallbackOnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.Content != "ok from fallback" {
-		t.Errorf("expected 'ok from fallback', got '%s'", resp.Content)
+	if resp.Choices[0].Message.Content != "ok from fallback" {
+		t.Errorf("expected 'ok from fallback', got '%s'", resp.Choices[0].Message.Content)
 	}
 }
 
@@ -245,6 +247,10 @@ func TestClassifyError(t *testing.T) {
 		{"server 500", fmt.Errorf("HTTP 500 Internal Server Error"), ErrorClassServerError},
 		{"client 401", fmt.Errorf("HTTP 401 Unauthorized"), ErrorClassClientError},
 		{"context window", fmt.Errorf("context length exceeds maximum"), ErrorClassContextWindow},
+		{"context window exceeded", fmt.Errorf("context length exceeded"), ErrorClassContextWindow},
+		{"empty response", fmt.Errorf("empty response from LLM (possible context length exceeded)"), ErrorClassContextWindow},
+		{"truncated json parse", fmt.Errorf("failed to parse response (possible context length exceeded, body=42 bytes): unexpected end of JSON input"), ErrorClassContextWindow},
+		{"truncated json implicit", fmt.Errorf("failed to parse response: unexpected end of JSON input"), ErrorClassContextWindow},
 		{"rate limit", fmt.Errorf("rate limit exceeded"), ErrorClassRateLimit},
 		{"unknown", fmt.Errorf("some random error"), ErrorClassUnknown},
 	}

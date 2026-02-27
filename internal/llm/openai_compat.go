@@ -77,14 +77,20 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req *ChatRequest) (*Cha
 		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
+	// Empty or extremely short response body likely indicates context window overflow
+	// (Ollama may return HTTP 200 with empty/truncated body when context is exceeded)
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, fmt.Errorf("empty response from LLM (possible context length exceeded)")
+	}
+
 	var response ChatResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		salvaged, salvageErr := salvageJSON(body)
 		if salvageErr != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
+			return nil, fmt.Errorf("failed to parse response (possible context length exceeded, body=%d bytes): %w", len(body), err)
 		}
 		if err := json.Unmarshal(salvaged, &response); err != nil {
-			return nil, fmt.Errorf("failed to parse salvaged response: %w", err)
+			return nil, fmt.Errorf("failed to parse salvaged response (possible context length exceeded): %w", err)
 		}
 	}
 

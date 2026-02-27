@@ -7,9 +7,9 @@ import (
 
 const (
 	// CompactThreshold is the percentage at which to compact
-	CompactThreshold = 0.7
+	CompactThreshold = 0.5
 	// CompactMessageThreshold is the minimum messages to trigger compaction
-	CompactMessageThreshold = 300
+	CompactMessageThreshold = 100
 )
 
 // CompactionResult represents the result of a compaction operation

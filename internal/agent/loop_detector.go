@@ -1,10 +1,9 @@
 package agent
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"strings"
 )
 
@@ -294,11 +293,13 @@ func (ld *LoopDetector) GetRecentCalls(n int) []ToolCallRecord {
 	return ld.history[len(ld.history)-n:]
 }
 
-// GenerateToolCallHash generates a hash of a tool call
+// GenerateToolCallHash generates a hash of a tool call using FNV-1a (lightweight, non-cryptographic)
 func GenerateToolCallHash(toolName string, arguments string) string {
-	data := fmt.Sprintf("%s:%s", toolName, arguments)
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
+	h := fnv.New64a()
+	h.Write([]byte(toolName))
+	h.Write([]byte{':'})
+	h.Write([]byte(arguments))
+	return fmt.Sprintf("%016x", h.Sum64())
 }
 
 // CheckForStuckLoop checks if the agent is stuck in a loop
