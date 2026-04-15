@@ -183,9 +183,9 @@ func (t *BashTool) executeSync(ctx context.Context, command string, timeout time
 	if err != nil {
 		hint := inferErrorHint(output, command)
 		if hint != "" {
-			return NewErrorResultWithID("", fmt.Errorf("Command failed: %v\nOutput:\n%s\n\nHint: %s", err, output, hint)), nil
+			return NewErrorResultWithID("", fmt.Errorf("Command failed: %w\nOutput:\n%s\n\nHint: %s", err, output, hint)), nil
 		}
-		return NewErrorResultWithID("", fmt.Errorf("Command failed: %v\nOutput:\n%s", err, output)), nil
+		return NewErrorResultWithID("", fmt.Errorf("Command failed: %w\nOutput:\n%s", err, output)), nil
 	}
 
 	return NewResultWithID("", output), nil

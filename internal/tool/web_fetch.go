@@ -190,7 +190,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, params json.RawMessage) (*Re
 func (t *WebFetchTool) checkSSRF(urlStr string) error {
 	u, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("Invalid URL: %v", err)
+		return fmt.Errorf("Invalid URL: %w", err)
 	}
 
 	// Get hostname from URL

@@ -848,7 +848,7 @@ func (a *Agent) validateGeneratedScripts(ctx context.Context, toolCalls []sessio
 	// Validate the script
 	result, err := ValidateGeneratedScript(ctx, args.FilePath, testInput, ScriptValidationTimeout)
 	if err != nil {
-		return fmt.Errorf("script validation error for %s: %v", args.FilePath, err)
+		return fmt.Errorf("script validation error for %s: %w", args.FilePath, err)
 	}
 
 	if !result.IsSuccess {

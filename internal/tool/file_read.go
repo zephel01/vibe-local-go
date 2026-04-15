@@ -240,7 +240,7 @@ func (t *ReadTool) readPDF(path string) (*Result, error) {
 	// Extract text (limit to 50 pages by default)
 	text, err := extractor.ExtractText(path, 50)
 	if err != nil {
-		return NewErrorResult(fmt.Errorf("PDF text extraction failed: %v. The file may be image-based (scanned) PDF", err)), nil
+		return NewErrorResult(fmt.Errorf("PDF text extraction failed: %w. The file may be image-based (scanned) PDF", err)), nil
 	}
 
 	var output strings.Builder

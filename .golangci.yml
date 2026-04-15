@@ -1,0 +1,53 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck       # エラー未チェック検出
+    - gosimple       # コード簡略化の提案
+    - govet          # go vet 相当
+    - ineffassign    # 無効な代入検出
+    - staticcheck    # 静的解析（SA*, S*, ST*, QF*）
+    - unused         # 未使用コード検出
+    - revive         # golint の後継、可読性ルール
+    - gosec          # セキュリティ問題検出
+    - gofmt          # フォーマット確認
+    - misspell       # スペルミス検出
+    - unconvert      # 不要な型変換検出
+    - bodyclose      # HTTP レスポンス Body の close 忘れ検出
+    - noctx          # context なしの HTTP リクエスト検出
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+      - name: var-naming
+        severity: warning
+      - name: error-return
+        severity: warning
+      - name: error-strings
+        severity: warning
+
+  gosec:
+    excludes:
+      - G304  # ファイルパスがユーザー入力に依存（意図的）
+      - G306  # ファイルパーミッション（意図的な 0644/0755）
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+issues:
+  exclude-rules:
+    # テストファイルは一部ルールを緩和
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+    # 生成コードは除外
+    - path: \.pb\.go
+      linters:
+        - all
+  max-issues-per-linter: 50
+  max-same-issues: 10

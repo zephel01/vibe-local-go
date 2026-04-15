@@ -75,7 +75,7 @@ func (t *ParallelAgentsTool) Execute(ctx context.Context, params json.RawMessage
 	}
 
 	if err := json.Unmarshal(params, &args); err != nil {
-		return NewErrorResult(fmt.Errorf("invalid parameters: %v", err)), nil
+		return NewErrorResult(fmt.Errorf("invalid parameters: %w", err)), nil
 	}
 
 	if len(args.Tasks) == 0 {
@@ -92,7 +92,7 @@ func (t *ParallelAgentsTool) Execute(ctx context.Context, params json.RawMessage
 
 	output, err := t.executor.RunParallelTasks(ctx, args.Tasks)
 	if err != nil {
-		return NewErrorResult(fmt.Errorf("parallel execution failed: %v", err)), nil
+		return NewErrorResult(fmt.Errorf("parallel execution failed: %w", err)), nil
 	}
 
 	return NewResult(output), nil

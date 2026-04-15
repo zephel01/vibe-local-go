@@ -89,7 +89,7 @@ func (t *NotebookEditTool) Execute(ctx context.Context, params json.RawMessage) 
 	}
 
 	if err := json.Unmarshal(params, &args); err != nil {
-		return NewErrorResult(fmt.Errorf("invalid parameters: %v", err)), nil
+		return NewErrorResult(fmt.Errorf("invalid parameters: %w", err)), nil
 	}
 
 	if args.Path == "" {
@@ -111,18 +111,18 @@ func (t *NotebookEditTool) Execute(ctx context.Context, params json.RawMessage) 
 	// Resolve path
 	resolvedPath, err := resolvePath(args.Path)
 	if err != nil {
-		return NewErrorResult(fmt.Errorf("cannot resolve path: %v", err)), nil
+		return NewErrorResult(fmt.Errorf("cannot resolve path: %w", err)), nil
 	}
 
 	// Read notebook
 	data, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		return NewErrorResult(fmt.Errorf("cannot read notebook: %v", err)), nil
+		return NewErrorResult(fmt.Errorf("cannot read notebook: %w", err)), nil
 	}
 
 	var nb notebook
 	if err := json.Unmarshal(data, &nb); err != nil {
-		return NewErrorResult(fmt.Errorf("invalid notebook format: %v", err)), nil
+		return NewErrorResult(fmt.Errorf("invalid notebook format: %w", err)), nil
 	}
 
 	// Execute operation
@@ -251,14 +251,14 @@ func splitSource(source string) []string {
 func writeNotebook(nb *notebook, path string) error {
 	data, err := json.MarshalIndent(nb, "", " ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal notebook: %v", err)
+		return fmt.Errorf("failed to marshal notebook: %w", err)
 	}
 
 	// Jupyter notebooks end with a newline
 	data = append(data, '\n')
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write notebook: %v", err)
+		return fmt.Errorf("failed to write notebook: %w", err)
 	}
 
 	return nil

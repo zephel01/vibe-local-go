@@ -24,7 +24,7 @@ func NewPDFTextExtractor() *PDFTextExtractor {
 func (e *PDFTextExtractor) ExtractText(path string, maxPages int) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("cannot read PDF file: %v", err)
+		return "", fmt.Errorf("cannot read PDF file: %w", err)
 	}
 
 	// Verify PDF header

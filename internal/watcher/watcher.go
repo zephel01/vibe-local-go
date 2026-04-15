@@ -119,7 +119,7 @@ func (fw *FileWatcher) Start(patterns []string) error {
 	// Build initial state
 	if err := fw.scanFiles(); err != nil {
 		fw.running = false
-		return fmt.Errorf("initial scan failed: %v", err)
+		return fmt.Errorf("initial scan failed: %w", err)
 	}
 
 	// Start polling goroutine

@@ -121,7 +121,7 @@ func (sa *SubAgent) Run(ctx context.Context, task string) SubAgentResult {
 			return SubAgentResult{
 				ID:       sa.id,
 				Output:   lastOutput,
-				Error:    fmt.Errorf("LLM call failed: %v", err),
+				Error:    fmt.Errorf("LLM call failed: %w", err),
 				Duration: time.Since(startTime),
 				Turns:    turns,
 			}

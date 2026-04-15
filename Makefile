@@ -1,4 +1,4 @@
-.PHONY: build build-all test lint clean help release install
+.PHONY: build build-all test lint coverage golangci clean help release install
 
 # Version from git tag or default
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -30,7 +30,9 @@ help:
 	@echo "  make build-all         - Cross-compile for all platforms (6 targets)"
 	@echo "  make release           - Build + compress all platforms (tar.gz/zip)"
 	@echo "  make test              - Run unit tests with race detector"
-	@echo "  make lint              - Run linter (vet + staticcheck)"
+	@echo "  make coverage          - Run tests with coverage report"
+	@echo "  make lint              - Run linter (go vet + golangci-lint)"
+	@echo "  make golangci          - Run golangci-lint only (install if missing)"
 	@echo "  make clean             - Clean dist/ directory"
 	@echo "  make install           - Build and install to ~/.local/bin/"
 	@echo "  make help              - Show this help"
@@ -121,19 +123,32 @@ test:
 	@go test -v -race -timeout 30s ./...
 	@echo "$(GREEN)✅ Tests passed$(NC)"
 
+coverage:
+	@echo "$(BLUE)📊 Running tests with coverage...$(NC)"
+	@mkdir -p $(DIST_DIR)
+	@go test -race -timeout 30s -coverprofile=$(DIST_DIR)/coverage.out ./...
+	@go tool cover -func=$(DIST_DIR)/coverage.out | tail -1
+	@go tool cover -html=$(DIST_DIR)/coverage.out -o $(DIST_DIR)/coverage.html
+	@echo "$(GREEN)✅ Coverage report: $(DIST_DIR)/coverage.html$(NC)"
+
 # === Linting ===
 
 lint:
 	@echo "$(BLUE)🔍 Running linter...$(NC)"
-	@echo "   vet..."
+	@echo "   go vet..."
 	@go vet ./...
-	@if command -v staticcheck &>/dev/null; then \
-		echo "   staticcheck..."; \
-		staticcheck ./... || true; \
-	else \
-		echo "   $(YELLOW)⚠️  staticcheck not installed (optional)$(NC)"; \
-	fi
+	@$(MAKE) golangci
 	@echo "$(GREEN)✅ Linting passed$(NC)"
+
+golangci:
+	@echo "$(BLUE)🔍 Running golangci-lint...$(NC)"
+	@if ! command -v golangci-lint &>/dev/null; then \
+		echo "   $(YELLOW)Installing golangci-lint...$(NC)"; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+			| sh -s -- -b $$(go env GOPATH)/bin latest; \
+	fi
+	@golangci-lint run ./...
+	@echo "$(GREEN)✅ golangci-lint passed$(NC)"
 
 # === Installation ===
 
