@@ -275,9 +275,9 @@ func TestNotebookEditTool_OutOfRange(t *testing.T) {
 	tool := NewNotebookEditTool()
 
 	tests := []struct {
-		name     string
-		mode     string
-		cellNum  int
+		name    string
+		mode    string
+		cellNum int
 	}{
 		{"replace out of range", "replace", 10},
 		{"replace negative", "replace", -1},

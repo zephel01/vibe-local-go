@@ -25,9 +25,7 @@ const (
 )
 
 // ReadTool reads file contents
-type ReadTool struct {
-	baseDir string
-}
+type ReadTool struct{}
 
 // NewReadTool creates a new read tool
 func NewReadTool() *ReadTool {

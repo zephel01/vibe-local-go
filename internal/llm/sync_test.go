@@ -13,21 +13,21 @@ import (
 
 func TestChatSync_ToolUse(t *testing.T) {
 	tests := []struct {
-		name          string
-		toolChoice    *ToolChoice
-		expectedTemp  float64
+		name           string
+		toolChoice     *ToolChoice
+		expectedTemp   float64
 		expectedStream bool
 	}{
 		{
-			name:          "with tool choice",
-			toolChoice:    &ToolChoice{Type: "auto"},
-			expectedTemp:  0.3,
+			name:           "with tool choice",
+			toolChoice:     &ToolChoice{Type: "auto"},
+			expectedTemp:   0.3,
 			expectedStream: false,
 		},
 		{
-			name:          "without tool choice",
-			toolChoice:    nil,
-			expectedTemp:  0.7,
+			name:           "without tool choice",
+			toolChoice:     nil,
+			expectedTemp:   0.7,
 			expectedStream: false,
 		},
 	}

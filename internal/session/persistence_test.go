@@ -451,10 +451,10 @@ func TestSessionCache(t *testing.T) {
 
 func TestPersistenceErrorHandling(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func(string) error
-		test     func(*PersistenceManager) error
-		wantErr  bool
+		name        string
+		setup       func(string) error
+		test        func(*PersistenceManager) error
+		wantErr     bool
 		errContains string
 	}{
 		{

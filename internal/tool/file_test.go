@@ -601,10 +601,10 @@ func TestEditTool_Execute_NonExistentFile(t *testing.T) {
 
 func TestCountStringOccurrences(t *testing.T) {
 	tests := []struct {
-		name      string
-		content   string
-		substr    string
-		expected  int
+		name     string
+		content  string
+		substr   string
+		expected int
 	}{
 		{"no matches", "hello world", "xyz", 0},
 		{"one match", "hello world", "world", 1},

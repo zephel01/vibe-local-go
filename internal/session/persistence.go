@@ -17,19 +17,19 @@ const (
 	SessionDir = "sessions"
 )
 
-// SessionIndex indexes sessions by project directory
-type SessionIndex struct {
+// Index indexes sessions by project directory
+type Index struct {
 	ProjectHash string    `json:"project_hash"`
 	SessionID   string    `json:"session_id"`
-	LastActive time.Time `json:"last_active"`
+	LastActive  time.Time `json:"last_active"`
 }
 
 // PersistenceManager manages session persistence
 type PersistenceManager struct {
-	baseDir   string
-	sessions  map[string]*Session
-	index     map[string]string // projectHash -> sessionID
-	mu        sync.RWMutex
+	baseDir  string
+	sessions map[string]*Session
+	index    map[string]string // projectHash -> sessionID
+	mu       sync.RWMutex
 }
 
 // NewPersistenceManager creates a new persistence manager
@@ -216,7 +216,7 @@ func (pm *PersistenceManager) loadIndex() error {
 		return err
 	}
 
-	var indices []SessionIndex
+	var indices []Index
 	if err := json.Unmarshal(data, &indices); err != nil {
 		return err
 	}
@@ -231,12 +231,12 @@ func (pm *PersistenceManager) loadIndex() error {
 
 // saveIndex saves the session index
 func (pm *PersistenceManager) saveIndex() error {
-	indices := make([]SessionIndex, 0, len(pm.index))
+	indices := make([]Index, 0, len(pm.index))
 	for projectHash, sessionID := range pm.index {
-		indices = append(indices, SessionIndex{
+		indices = append(indices, Index{
 			ProjectHash: projectHash,
 			SessionID:   sessionID,
-			LastActive: time.Now(),
+			LastActive:  time.Now(),
 		})
 	}
 
@@ -344,10 +344,10 @@ func (pm *PersistenceManager) GetSessionInfo(sessionID string) (*SessionInfo, er
 	}
 
 	return &SessionInfo{
-		ID:          sessionID,
+		ID:           sessionID,
 		MessageCount: session.GetMessageCount(),
 		TokenCount:   session.GetTokenCount(),
-		FileSize:    info.Size(),
+		FileSize:     info.Size(),
 		LastModified: info.ModTime(),
 	}, nil
 }

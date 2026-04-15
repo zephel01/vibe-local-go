@@ -36,16 +36,16 @@ const (
 
 // PermissionRule represents a persistent permission rule
 type PermissionRule struct {
-	ToolName     string         `json:"tool_name"`
+	ToolName       string         `json:"tool_name"`
 	PermissionType PermissionType `json:"permission_type"`
 }
 
 // PermissionManager manages tool execution permissions
 type PermissionManager struct {
-	rules       map[string]PermissionType
-	rulesFile   string
+	rules         map[string]PermissionType
+	rulesFile     string
 	alwaysApprove bool // -y flag
-	mu          sync.RWMutex
+	mu            sync.RWMutex
 }
 
 // NewPermissionManager creates a new permission manager
@@ -143,7 +143,7 @@ func (pm *PermissionManager) saveRules() error {
 	rules := make([]PermissionRule, 0, len(pm.rules))
 	for toolName, permType := range pm.rules {
 		rules = append(rules, PermissionRule{
-			ToolName:     toolName,
+			ToolName:       toolName,
 			PermissionType: permType,
 		})
 	}

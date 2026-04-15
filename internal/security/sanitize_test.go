@@ -134,12 +134,12 @@ func TestIsSensitiveEnvVar(t *testing.T) {
 func TestGetSafeEnvVar(t *testing.T) {
 	// Set up test environment variables
 	testCases := []struct {
-		name           string
-		setVar         string
-		setValue       string
-		getVar         string
-		expectFound    bool
-		expectValue    string
+		name        string
+		setVar      string
+		setValue    string
+		getVar      string
+		expectFound bool
+		expectValue string
 	}{
 		{"get safe variable", "TEST_VAR", "test_value", "TEST_VAR", true, "test_value"},
 		{"get sensitive TOKEN", "API_TOKEN", "secret", "API_TOKEN", false, ""},

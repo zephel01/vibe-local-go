@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -20,9 +19,7 @@ const (
 )
 
 // GrepTool searches for text patterns in files
-type GrepTool struct {
-	baseDir string
-}
+type GrepTool struct{}
 
 // NewGrepTool creates a new grep tool
 func NewGrepTool() *GrepTool {
@@ -285,82 +282,4 @@ type GrepMatch struct {
 	Line       string
 	Match      string
 	Count      int
-}
-
-// parseContextLines parses context lines from parameters
-func parseContextLines(params json.RawMessage) (int, error) {
-	var args struct {
-		ContextLines int `json:"context_lines"`
-	}
-	if err := json.Unmarshal(params, &args); err != nil {
-		return 0, nil
-	}
-	if args.ContextLines < 0 {
-		args.ContextLines = 0
-	}
-	return args.ContextLines, nil
-}
-
-// parseMaxMatches parses max_matches from parameters
-func parseMaxMatches(params json.RawMessage) (int, error) {
-	var args struct {
-		MaxMatches int `json:"max_matches"`
-	}
-	if err := json.Unmarshal(params, &args); err != nil {
-		return DefaultMaxMatches, nil
-	}
-	if args.MaxMatches <= 0 {
-		return DefaultMaxMatches, nil
-	}
-	return args.MaxMatches, nil
-}
-
-// parseMode parses search mode from parameters
-func parseMode(params json.RawMessage) string {
-	var args struct {
-		Mode string `json:"mode"`
-	}
-	if err := json.Unmarshal(params, &args); err != nil {
-		return "content"
-	}
-	switch args.Mode {
-	case "content", "files_with_matches", "count":
-		return args.Mode
-	default:
-		return "content"
-	}
-}
-
-// parseFilePattern parses file pattern from parameters
-func parseFilePattern(params json.RawMessage) string {
-	var args struct {
-		FilePattern string `json:"file_pattern"`
-	}
-	if err := json.Unmarshal(params, &args); err != nil || args.FilePattern == "" {
-		return "*"
-	}
-	return args.FilePattern
-}
-
-// parseInt parses an integer from JSON parameters
-func parseInt(params json.RawMessage, key string, defaultValue int) (int, error) {
-	var args map[string]interface{}
-	if err := json.Unmarshal(params, &args); err != nil {
-		return defaultValue, nil
-	}
-
-	if val, ok := args[key]; ok {
-		switch v := val.(type) {
-		case float64:
-			return int(v), nil
-		case string:
-			i, err := strconv.Atoi(v)
-			if err != nil {
-				return defaultValue, nil
-			}
-			return i, nil
-		}
-	}
-
-	return defaultValue, nil
 }

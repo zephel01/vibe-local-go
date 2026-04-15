@@ -153,7 +153,7 @@ func (mr *MarkdownRenderer) renderInline(text string) {
 // renderTextStyles テキストスタイルをレンダリング
 func (mr *MarkdownRenderer) renderTextStyles(text string) {
 	// **太字** を処理
-	re := regexp.MustCompile("\\*\\*([^*]+)\\*\\*")
+	re := regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	matches := re.FindAllStringSubmatchIndex(text, -1)
 
 	if len(matches) == 0 {

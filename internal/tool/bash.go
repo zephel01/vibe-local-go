@@ -96,9 +96,9 @@ func (t *BashTool) Schema() *FunctionSchema {
 // Execute executes a bash command
 func (t *BashTool) Execute(ctx context.Context, params json.RawMessage) (*Result, error) {
 	var args struct {
-		Command          string `json:"command"`
+		Command         string `json:"command"`
 		Timeout         int    `json:"timeout"`
-		RunInBackground  bool   `json:"run_in_background"`
+		RunInBackground bool   `json:"run_in_background"`
 	}
 
 	if err := json.Unmarshal(params, &args); err != nil {
@@ -236,7 +236,7 @@ func isPythonCommand(command string) bool {
 
 	// 先頭のコマンド名で判定
 	pythonPrefixes := []string{
-		"python3 ", "python3\n", "python ",  "python\n",
+		"python3 ", "python3\n", "python ", "python\n",
 		"pip ", "pip3 ", "pip install",
 		"uv pip", "uv run",
 		"pytest", "mypy", "ruff", "black", "isort", "flake8",

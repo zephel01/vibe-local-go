@@ -26,10 +26,9 @@ type SandboxStager interface {
 
 // WriteTool writes content to files
 type WriteTool struct {
-	baseDir    string
-	undoStack  []UndoEntry
-	undoMutex  sync.Mutex
-	sandbox    SandboxStager
+	undoStack []UndoEntry
+	undoMutex sync.Mutex
+	sandbox   SandboxStager
 }
 
 // NewWriteTool creates a new write tool
@@ -168,7 +167,7 @@ func (t *WriteTool) Execute(ctx context.Context, params json.RawMessage) (*Resul
 
 	// Add to undo stack
 	t.addToUndoStack(UndoEntry{
-		Path:      resolvedPath,
+		Path:       resolvedPath,
 		OldContent: oldContent,
 		NewContent: content,
 	})
@@ -184,12 +183,12 @@ func getManagedDirWarning(path string) string {
 	// Check each path component for managed directory names
 	parts := strings.Split(path, string(filepath.Separator))
 	managedDirs := []string{
-		".venv",        // Python virtual environment
-		"venv",         // Python virtual environment (alternative name)
-		"__pycache__",  // Python bytecode cache
-		"node_modules", // Node.js dependencies
-		".git",         // Git internals
-		".tox",         // Python tox testing
+		".venv",         // Python virtual environment
+		"venv",          // Python virtual environment (alternative name)
+		"__pycache__",   // Python bytecode cache
+		"node_modules",  // Node.js dependencies
+		".git",          // Git internals
+		".tox",          // Python tox testing
 		"site-packages", // Python installed packages
 		"dist-packages", // Python system packages
 	}

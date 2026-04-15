@@ -186,7 +186,7 @@ func TestShouldNotRetry(t *testing.T) {
 func TestDelayForRetry(t *testing.T) {
 	// Test exponential backoff
 	attempts := []struct {
-		attempt int
+		attempt  int
 		minDelay time.Duration
 		maxDelay time.Duration
 	}{
@@ -377,9 +377,9 @@ func TestExecuteToolCalls_ContextCancellation(t *testing.T) {
 
 // Mock tool for testing
 type mockTool struct {
-	name     string
-	execute  func(context.Context, json.RawMessage) (*tool.Result, error)
-	schema   *tool.FunctionSchema
+	name    string
+	execute func(context.Context, json.RawMessage) (*tool.Result, error)
+	schema  *tool.FunctionSchema
 }
 
 func (m *mockTool) Name() string {
@@ -399,7 +399,7 @@ func newMockTool(name string) *mockTool {
 		name: name,
 		execute: func(ctx context.Context, args json.RawMessage) (*tool.Result, error) {
 			return &tool.Result{
-				Output: `{"result": "success"}`,
+				Output:  `{"result": "success"}`,
 				IsError: false,
 			}, nil
 		},

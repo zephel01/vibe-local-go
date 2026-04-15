@@ -71,9 +71,9 @@ func (a *MCPToolAdapter) Schema() *tool.FunctionSchema {
 	// MCP の inputSchema を tool.ParameterSchema に変換
 	if a.toolSchema.InputSchema != nil {
 		var inputSchema struct {
-			Type       string                          `json:"type"`
-			Properties map[string]json.RawMessage      `json:"properties,omitempty"`
-			Required   []string                        `json:"required,omitempty"`
+			Type       string                     `json:"type"`
+			Properties map[string]json.RawMessage `json:"properties,omitempty"`
+			Required   []string                   `json:"required,omitempty"`
 		}
 		if err := json.Unmarshal(a.toolSchema.InputSchema, &inputSchema); err == nil {
 			paramSchema := &tool.ParameterSchema{

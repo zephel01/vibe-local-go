@@ -137,11 +137,11 @@ func GetTextStats(text string) TextStats {
 	tokens := cjkCount + (otherCount / AverageCharsPerToken)
 
 	return TextStats{
-		CharCount:    utf8.RuneCountInString(text),
-		ByteCount:    len(text),
-		CJKCharCount: cjkCount,
-		OtherCount:   otherCount,
-		WordCount:    wordCount,
+		CharCount:     utf8.RuneCountInString(text),
+		ByteCount:     len(text),
+		CJKCharCount:  cjkCount,
+		OtherCount:    otherCount,
+		WordCount:     wordCount,
 		TokenEstimate: tokens,
 	}
 }

@@ -90,8 +90,8 @@ func TestEstimateTokensWithImages_NoImages(t *testing.T) {
 
 func TestIsCJK_HanChinese(t *testing.T) {
 	tests := []struct {
-		r    rune
-		cjk  bool
+		r   rune
+		cjk bool
 	}{
 		{'你', true},  // Chinese
 		{'我', true},  // Chinese
@@ -277,10 +277,10 @@ func TestIsLikelyCJKText_Mixed(t *testing.T) {
 
 func TestEstimateContextUsage(t *testing.T) {
 	tests := []struct {
-		name         string
-		tokenCount   int
+		name          string
+		tokenCount    int
 		contextWindow int
-		expected     float64
+		expected      float64
 	}{
 		{"zero tokens", 0, 32768, 0.0},
 		{"half full", 16384, 32768, 50.0},

@@ -16,10 +16,10 @@ type CloudProviderDef struct {
 
 // LocalProviderDef ローカルプロバイダーの定義
 type LocalProviderDef struct {
-	Name         string   // 表示名
-	Key          string   // config内キー ("ollama", "lm-studio", "llama-server")
-	DefaultHost  string   // デフォルトホスト
-	DefaultModel string   // デフォルトモデル
+	Name         string // 表示名
+	Key          string // config内キー ("ollama", "lm-studio", "llama-server")
+	DefaultHost  string // デフォルトホスト
+	DefaultModel string // デフォルトモデル
 }
 
 // LocalProviders 利用可能なローカルプロバイダー定義

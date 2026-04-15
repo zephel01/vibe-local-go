@@ -16,17 +16,17 @@ const (
 
 // ToolCallRecord represents a recorded tool call
 type ToolCallRecord struct {
-	ToolName   string
-	Arguments  string
-	Timestamp  int64
+	ToolName  string
+	Arguments string
+	Timestamp int64
 }
 
 // LoopDetector detects repeated tool call patterns
 type LoopDetector struct {
-	history       []ToolCallRecord
-	toolCounts    map[string]int // ツール名ごとの総呼び出し数（参考値）
-	hashCounts    map[string]int // (ツール名+引数)ハッシュごとの呼び出し数（ループ判定用）
-	historySize   int
+	history     []ToolCallRecord
+	toolCounts  map[string]int // ツール名ごとの総呼び出し数（参考値）
+	hashCounts  map[string]int // (ツール名+引数)ハッシュごとの呼び出し数（ループ判定用）
+	historySize int
 }
 
 // NewLoopDetector creates a new loop detector
@@ -148,11 +148,7 @@ func (ld *LoopDetector) hasRepeatingPattern() bool {
 		}
 	}
 
-	if recentCount >= MaxSameToolRepeat {
-		return true
-	}
-
-	return false
+	return recentCount >= MaxSameToolRepeat
 }
 
 // hasSimilarBashLoop checks if the agent is repeatedly calling bash with similar test/install commands
@@ -217,11 +213,11 @@ func (ld *LoopDetector) GetLoopInfo() *LoopInfo {
 	pattern := ld.findRepeatingPattern()
 
 	return &LoopInfo{
-		LoopDetected:  true,
-		ToolName:      pattern.ToolName,
-		RepeatCount:   ld.toolCounts[pattern.ToolName],
-		LastSeen:      pattern.Timestamp,
-		Description:   ld.getDescription(pattern),
+		LoopDetected: true,
+		ToolName:     pattern.ToolName,
+		RepeatCount:  ld.toolCounts[pattern.ToolName],
+		LastSeen:     pattern.Timestamp,
+		Description:  ld.getDescription(pattern),
 	}
 }
 
@@ -348,9 +344,9 @@ func (ld *LoopDetector) GetLoopStatus() string {
 // LoopInfo represents information about a detected loop
 type LoopInfo struct {
 	LoopDetected bool
-	ToolName    string
-	RepeatCount int
-	LastSeen    int64
+	ToolName     string
+	RepeatCount  int
+	LastSeen     int64
 	Description  string
 }
 

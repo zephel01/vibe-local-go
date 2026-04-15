@@ -7,50 +7,50 @@ import (
 	"strings"
 )
 
-// SkillSource スキルの配置元
-type SkillSource string
+// Source スキルの配置元
+type Source string
 
 const (
 	// SourceGlobal グローバルスキル (~/.config/vibe-local-go/skills/)
-	SourceGlobal SkillSource = "global"
+	SourceGlobal Source = "global"
 	// SourceProject プロジェクトスキル (.vibe-local/skills/)
-	SourceProject SkillSource = "project"
+	SourceProject Source = "project"
 )
 
-// SkillMeta スキルのメタデータ（L1: 起動時にシステムプロンプトへ注入）
-type SkillMeta struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Dir         string      `json:"-"` // スキルディレクトリの絶対パス
-	SkillFile   string      `json:"-"` // SKILL.md の絶対パス
-	Source      SkillSource `json:"source"`
+// Meta スキルのメタデータ（L1: 起動時にシステムプロンプトへ注入）
+type Meta struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Dir         string `json:"-"` // スキルディレクトリの絶対パス
+	SkillFile   string `json:"-"` // SKILL.md の絶対パス
+	Source      Source `json:"source"`
 }
 
-// SkillManager スキルの検出・管理
-type SkillManager struct {
-	skills     []*SkillMeta
+// Manager スキルの検出・管理
+type Manager struct {
+	skills     []*Meta
 	globalDir  string // グローバルスキルディレクトリ
 	projectDir string // プロジェクトスキルディレクトリ
 }
 
-// NewSkillManager 新しいSkillManagerを作成
-func NewSkillManager() *SkillManager {
+// NewManager 新しいManagerを作成
+func NewManager() *Manager {
 	homeDir, _ := os.UserHomeDir()
 	globalDir := filepath.Join(homeDir, ".config", "vibe-local-go", "skills")
 
 	cwd, _ := os.Getwd()
 	projectDir := filepath.Join(cwd, ".vibe-local", "skills")
 
-	return &SkillManager{
-		skills:     make([]*SkillMeta, 0),
+	return &Manager{
+		skills:     make([]*Meta, 0),
 		globalDir:  globalDir,
 		projectDir: projectDir,
 	}
 }
 
 // LoadSkills グローバル + プロジェクトからスキルを読み込み
-func (sm *SkillManager) LoadSkills() error {
-	sm.skills = make([]*SkillMeta, 0)
+func (sm *Manager) LoadSkills() error {
+	sm.skills = make([]*Meta, 0)
 
 	// グローバルスキル
 	if err := sm.loadFromDir(sm.globalDir, SourceGlobal); err != nil {
@@ -71,7 +71,7 @@ func (sm *SkillManager) LoadSkills() error {
 }
 
 // loadFromDir 指定ディレクトリからスキルを読み込み
-func (sm *SkillManager) loadFromDir(dir string, source SkillSource) error {
+func (sm *Manager) loadFromDir(dir string, source Source) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -119,14 +119,14 @@ func (sm *SkillManager) loadFromDir(dir string, source SkillSource) error {
 //	name: skill-name
 //	description: スキルの説明
 //	---
-func parseSkillFile(path string) (*SkillMeta, error) {
+func parseSkillFile(path string) (*Meta, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	content := string(data)
-	meta := &SkillMeta{}
+	meta := &Meta{}
 
 	// YAML frontmatter の検出
 	if !strings.HasPrefix(strings.TrimSpace(content), "---") {
@@ -176,12 +176,12 @@ func parseSkillFile(path string) (*SkillMeta, error) {
 }
 
 // GetSkills 全スキルのメタデータを返す
-func (sm *SkillManager) GetSkills() []*SkillMeta {
+func (sm *Manager) GetSkills() []*Meta {
 	return sm.skills
 }
 
 // GetSkillByName 名前でスキルを検索
-func (sm *SkillManager) GetSkillByName(name string) *SkillMeta {
+func (sm *Manager) GetSkillByName(name string) *Meta {
 	for _, s := range sm.skills {
 		if s.Name == name {
 			return s
@@ -190,8 +190,8 @@ func (sm *SkillManager) GetSkillByName(name string) *SkillMeta {
 	return nil
 }
 
-// GetSkillMetadata システムプロンプトに注入するメタデータ文字列を生成
-func (sm *SkillManager) GetSkillMetadata() string {
+// GetMetadata システムプロンプトに注入するメタデータ文字列を生成
+func (sm *Manager) GetMetadata() string {
 	if len(sm.skills) == 0 {
 		return ""
 	}
@@ -215,16 +215,16 @@ func (sm *SkillManager) GetSkillMetadata() string {
 }
 
 // GlobalDir グローバルスキルディレクトリのパスを返す
-func (sm *SkillManager) GlobalDir() string {
+func (sm *Manager) GlobalDir() string {
 	return sm.globalDir
 }
 
 // ProjectDir プロジェクトスキルディレクトリのパスを返す
-func (sm *SkillManager) ProjectDir() string {
+func (sm *Manager) ProjectDir() string {
 	return sm.projectDir
 }
 
 // Count スキル数を返す
-func (sm *SkillManager) Count() int {
+func (sm *Manager) Count() int {
 	return len(sm.skills)
 }

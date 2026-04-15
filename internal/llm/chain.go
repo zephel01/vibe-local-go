@@ -34,13 +34,13 @@ type FallbackCallback func(fromProvider, toProvider string, classification Error
 type ProviderChain struct {
 	entries      []ChainEntry
 	current      int
-	lastError    error                   // 最後のエラー
-	failureCount map[int]int             // プロバイダーごとの失敗カウント
-	failureTime  map[int]time.Time        // プロバイダーごとの最後の失敗時刻
-	fallbackOn   bool                     // フォールバック有効化フラグ
-	maxRetries   int                      // 最大リトライ数
-	condition    FallbackCondition        // フォールバック条件
-	onFallback   FallbackCallback         // フォールバック通知コールバック
+	lastError    error             // 最後のエラー
+	failureCount map[int]int       // プロバイダーごとの失敗カウント
+	failureTime  map[int]time.Time // プロバイダーごとの最後の失敗時刻
+	fallbackOn   bool              // フォールバック有効化フラグ
+	maxRetries   int               // 最大リトライ数
+	condition    FallbackCondition // フォールバック条件
+	onFallback   FallbackCallback  // フォールバック通知コールバック
 	mu           sync.RWMutex
 }
 

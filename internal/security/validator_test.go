@@ -225,7 +225,7 @@ func TestIsSafePath(t *testing.T) {
 		{"safe relative path", "file.txt", true},
 		{"safe subdirectory", "subdir/file.txt", true},
 		{"safe absolute path", "/home/user/file.txt", true},
-		{"path traversal with ..", "../etc/passwd", false}, // Contains ".." after cleaning
+		{"path traversal with ..", "../etc/passwd", false},                           // Contains ".." after cleaning
 		{"path traversal in middle - after clean", "/home/user/../etc/passwd", true}, // After cleaning becomes /etc/passwd, no ".." and doesn't start with unsafe prefix
 		{"unsafe /dev path", "/dev/null", false},
 		{"unsafe /proc path", "/proc/cpuinfo", false},

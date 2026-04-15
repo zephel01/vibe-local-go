@@ -19,9 +19,7 @@ const (
 )
 
 // GlobTool searches for files matching patterns
-type GlobTool struct {
-	baseDir string
-}
+type GlobTool struct{}
 
 // NewGlobTool creates a new glob tool
 func NewGlobTool() *GlobTool {

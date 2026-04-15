@@ -22,18 +22,18 @@ const (
 
 // Message represents a chat message
 type Message struct {
-	Role       MessageRole   `json:"role"`
-	Content    string        `json:"content"`
-	ToolCalls  []ToolCall   `json:"tool_calls,omitempty"`
-	ToolID     string        `json:"tool_id,omitempty"`
-	TokenCount int           `json:"token_count,omitempty"`
+	Role       MessageRole `json:"role"`
+	Content    string      `json:"content"`
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
+	ToolID     string      `json:"tool_id,omitempty"`
+	TokenCount int         `json:"token_count,omitempty"`
 }
 
 // ToolCall represents a tool call within a message
 type ToolCall struct {
-	ID       string        `json:"id"`
-	Type     string        `json:"type"`
-	Function FunctionCall  `json:"function"`
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function FunctionCall `json:"function"`
 }
 
 // FunctionCall represents a function call
@@ -44,11 +44,11 @@ type FunctionCall struct {
 
 // Session represents a chat session with message history
 type Session struct {
-	ID             string
-	Messages       []Message
-	SystemPrompt   string
-	TokenEstimate  int
-	mu             sync.RWMutex
+	ID            string
+	Messages      []Message
+	SystemPrompt  string
+	TokenEstimate int
+	mu            sync.RWMutex
 
 	// Cache for GetMessagesForLLM (avoid O(n) rebuild every call)
 	cachedLLMMessages []map[string]interface{}
@@ -104,7 +104,7 @@ func (s *Session) AddToolCall(toolCalls []ToolCall) {
 	msg := Message{
 		Role:      RoleAssistant,
 		Content:   "",
-		ToolCalls:  toolCalls,
+		ToolCalls: toolCalls,
 	}
 
 	s.Messages = append(s.Messages, msg)
@@ -133,7 +133,7 @@ func (s *Session) AddToolResults(results []ToolResult) {
 
 // ToolResult represents a tool execution result
 type ToolResult struct {
-	Content   string
+	Content    string
 	ToolCallID string
 }
 

@@ -18,33 +18,33 @@ func ExtractToolCallsFromText(text string, knownToolNames []string) ([]ToolCall,
 
 	// Try multiple XML patterns
 	patterns := []struct {
-		name     string
-		regex    string
-		parser   func(matches [][]string, knownTools []string) ([]ToolCall, error)
+		name   string
+		regex  string
+		parser func(matches [][]string, knownTools []string) ([]ToolCall, error)
 	}{
 		{
-			name:  "invoke",
-			regex: `<invoke\s+name="([^"]+)">([^<]*)</invoke>`,
+			name:   "invoke",
+			regex:  `<invoke\s+name="([^"]+)">([^<]*)</invoke>`,
 			parser: parseInvokePattern,
 		},
 		{
-			name:  "function",
-			regex: `<function[^>]*>([^<]*)</function>`,
+			name:   "function",
+			regex:  `<function[^>]*>([^<]*)</function>`,
 			parser: parseFunctionPattern,
 		},
 		{
-			name:  "use_tool",
-			regex: `<use_tool\s+name="([^"]+)">([^<]*)</use_tool>`,
+			name:   "use_tool",
+			regex:  `<use_tool\s+name="([^"]+)">([^<]*)</use_tool>`,
 			parser: parseSimplePattern,
 		},
 		{
-			name:  "tool_call",
-			regex: `<tool_call\s+name="([^"]+)">([^<]*)</tool_call>`,
+			name:   "tool_call",
+			regex:  `<tool_call\s+name="([^"]+)">([^<]*)</tool_call>`,
 			parser: parseSimplePattern,
 		},
 		{
-			name:  "execute",
-			regex: `<execute\s+name="([^"]+)">([^<]*)</execute>`,
+			name:   "execute",
+			regex:  `<execute\s+name="([^"]+)">([^<]*)</execute>`,
 			parser: parseSimplePattern,
 		},
 	}

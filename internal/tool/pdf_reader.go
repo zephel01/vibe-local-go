@@ -128,7 +128,8 @@ func decompressFlate(data []byte) ([]byte, error) {
 	defer reader.Close()
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, reader); err != nil {
+	const maxDecompressSize = 100 * 1024 * 1024 // 100MB limit
+	if _, err := io.Copy(&buf, io.LimitReader(reader, maxDecompressSize)); err != nil {
 		return nil, err
 	}
 

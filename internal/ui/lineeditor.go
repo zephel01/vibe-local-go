@@ -23,11 +23,11 @@ import (
 // - Enter 入力確定・送信
 // - ブラケットペーストモード対応（複数行ペーストを正しく処理）
 type LineEditor struct {
-	history       []string
-	historyIndex  int
-	maxHistory    int
-	completions   []string // タブ補完候補（"/help", "/models" 等）
-	contPrompt    string   // 継続行のプロンプト（"... "）
+	history      []string
+	historyIndex int
+	maxHistory   int
+	completions  []string // タブ補完候補（"/help", "/models" 等）
+	contPrompt   string   // 継続行のプロンプト（"... "）
 
 	// 描画状態追跡（redrawMultiLine で使用）
 	prevLineCount  int // 前回描画時の総行数
@@ -141,7 +141,7 @@ func (le *LineEditor) ReadLine(prompt string) (string, error) {
 	defer func() { _ = term.Restore(fd, oldState) }()
 
 	buf := make([]rune, 0, 256)
-	cursor := 0 // カーソル位置（rune単位、バッファ全体での位置）
+	cursor := 0                       // カーソル位置（rune単位、バッファ全体での位置）
 	le.historyIndex = len(le.history) // 履歴末尾（=新規入力）
 	savedInput := ""                  // 履歴ナビ前の入力を保存
 

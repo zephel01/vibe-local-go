@@ -66,10 +66,10 @@ func (t *WebFetchTool) Schema() *FunctionSchema {
 func (t *WebFetchTool) Execute(ctx context.Context, params json.RawMessage) (*Result, error) {
 	// Parse parameters
 	var p struct {
-		URL             string  `json:"url"`
-		Headers         string  `json:"headers"`
-		FollowRedirect  bool    `json:"follow_redirect"`
-		Timeout         float64 `json:"timeout"`
+		URL            string  `json:"url"`
+		Headers        string  `json:"headers"`
+		FollowRedirect bool    `json:"follow_redirect"`
+		Timeout        float64 `json:"timeout"`
 	}
 
 	if err := json.Unmarshal(params, &p); err != nil {
@@ -158,7 +158,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, params json.RawMessage) (*Re
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 5000))
 		return &Result{
-			Output: fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)),
+			Output:  fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)),
 			IsError: true,
 		}, nil
 	}

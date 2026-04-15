@@ -6,7 +6,7 @@ import "os"
 const (
 	DefaultOllamaHost    = "http://localhost:11434"
 	DefaultMaxTokens     = 8192
-	DefaultTemperature  = 0.2
+	DefaultTemperature   = 0.2
 	DefaultContextWindow = 32768
 )
 
@@ -36,18 +36,17 @@ type Config struct {
 	Provider string // "ollama" (default), "openrouter", "openai", "anthropic", "google", etc.
 
 	// Ollama settings
-	OllamaHost    string
-	OllamaNumCtx  int // Ollama num_ctx override (0 = use Ollama default)
-	OllamaNumGPU  int // Ollama num_gpu override (-1 = not set, 0+ = explicit)
+	OllamaHost   string
+	OllamaNumCtx int // Ollama num_ctx override (0 = use Ollama default)
+	OllamaNumGPU int // Ollama num_gpu override (-1 = not set, 0+ = explicit)
 
 	// Cloud provider API keys (provider key → API key)
 	CloudAPIKeys map[string]string
 
-
 	// Session settings
-	SessionID     string
-	ResumeLast    bool
-	ListSessions  bool
+	SessionID    string
+	ResumeLast   bool
+	ListSessions bool
 
 	// One-shot mode
 	Prompt string

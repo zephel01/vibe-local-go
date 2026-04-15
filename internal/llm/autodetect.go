@@ -14,12 +14,12 @@ import (
 
 // DetectedProvider represents a detected LLM provider
 type DetectedProvider struct {
-	Name     string     `json:"name"`      // "ollama", "llama-server", "lm-studio"
-	URL      string     `json:"url"`       // "http://localhost:11434"
-	Models   []string   `json:"models"`    // ["qwen3:8b", "mistral:7b"]
-	Health   bool       `json:"health"`    // Detection successful
-	Features Features   `json:"features"`  // Supported features
-	BasePort int        `json:"-"`         // Port for detection (not serialized)
+	Name     string   `json:"name"`     // "ollama", "llama-server", "lm-studio"
+	URL      string   `json:"url"`      // "http://localhost:11434"
+	Models   []string `json:"models"`   // ["qwen3:8b", "mistral:7b"]
+	Health   bool     `json:"health"`   // Detection successful
+	Features Features `json:"features"` // Supported features
+	BasePort int      `json:"-"`        // Port for detection (not serialized)
 }
 
 // AutoDetect detects available LLM providers on localhost
@@ -126,10 +126,10 @@ func AutoDetect(ctx context.Context) []DetectedProvider {
 	// Sort by provider priority (Ollama → llama-server → lm-studio → custom)
 	sort.Slice(results, func(i, j int) bool {
 		priority := map[string]int{
-			"ollama":        0,
-			"llama-server":  1,
-			"lm-studio":     2,
-			"custom":        3,
+			"ollama":       0,
+			"llama-server": 1,
+			"lm-studio":    2,
+			"custom":       3,
 		}
 		return priority[results[i].Name] < priority[results[j].Name]
 	})
@@ -373,9 +373,9 @@ func DetectProvidersByPort(ctx context.Context, ports []int) []DetectedProvider 
 		path   string
 		parser func([]byte) ([]string, error)
 	}{
-		{"/api/tags", parseOllamaModels},                // Ollama
-		{"/api/v1/models", parseLMStudioNativeModels},   // LM Studio Native REST API (0.4.0+)
-		{"/v1/models", parseLlamaServerModels},          // llama-server (OpenAI-compat)
+		{"/api/tags", parseOllamaModels},              // Ollama
+		{"/api/v1/models", parseLMStudioNativeModels}, // LM Studio Native REST API (0.4.0+)
+		{"/v1/models", parseLlamaServerModels},        // llama-server (OpenAI-compat)
 	}
 
 	// Check each port with each endpoint
@@ -437,10 +437,10 @@ func DetectProvidersByPort(ctx context.Context, ports []int) []DetectedProvider 
 	// Sort by priority
 	sort.Slice(results, func(i, j int) bool {
 		priority := map[string]int{
-			"ollama":        0,
-			"llama-server":  1,
-			"lm-studio":     2,
-			"unknown":       3,
+			"ollama":       0,
+			"llama-server": 1,
+			"lm-studio":    2,
+			"unknown":      3,
 		}
 		return priority[results[i].Name] < priority[results[j].Name]
 	})

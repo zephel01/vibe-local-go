@@ -60,8 +60,8 @@ func (t *NotebookEditTool) Schema() *FunctionSchema {
 
 // notebookCell represents a single cell in a Jupyter notebook
 type notebookCell struct {
-	CellType string        `json:"cell_type"`
-	Source   []string       `json:"source"`
+	CellType string          `json:"cell_type"`
+	Source   []string        `json:"source"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// code cell fields
 	ExecutionCount *int            `json:"execution_count,omitempty"`

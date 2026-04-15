@@ -116,8 +116,8 @@ func (d *Dispatcher) executeSingleTool(ctx context.Context, toolCall *session.To
 	if !exists {
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   false,
-			Error:       fmt.Sprintf("Tool not found: %s", toolName),
+			IsSuccess:  false,
+			Error:      fmt.Sprintf("Tool not found: %s", toolName),
 		}
 	}
 	toolInst := toolCfg.Tool
@@ -131,9 +131,9 @@ func (d *Dispatcher) executeSingleTool(ctx context.Context, toolCall *session.To
 		if err == nil && !toolResult.IsError {
 			return ToolResult{
 				ToolCallID: toolCall.ID,
-				IsSuccess:   true,
-				Content:     toolResult.Output,
-				Error:       toolResult.Error,
+				IsSuccess:  true,
+				Content:    toolResult.Output,
+				Error:      toolResult.Error,
 			}
 		}
 
@@ -159,32 +159,32 @@ func (d *Dispatcher) executeSingleTool(ctx context.Context, toolCall *session.To
 	case tool.FailureStrategyFatal:
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   false,
-			Error:       fmt.Sprintf("❌ %s failed: %v", toolName, lastErr),
+			IsSuccess:  false,
+			Error:      fmt.Sprintf("❌ %s failed: %v", toolName, lastErr),
 		}
 
 	case tool.FailureStrategySkip:
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   true,
-			Content:     fmt.Sprintf("⚠️ %s skipped due to failure, continuing without it", toolName),
-			Error:       "",
+			IsSuccess:  true,
+			Content:    fmt.Sprintf("⚠️ %s skipped due to failure, continuing without it", toolName),
+			Error:      "",
 		}
 
 	case tool.FailureStrategyFallback:
 		fallbackResult := d.getFallbackResult(toolName, arguments)
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   true,
-			Content:     fallbackResult,
-			Error:       fmt.Sprintf("⚠️ %s failed, using fallback result", toolName),
+			IsSuccess:  true,
+			Content:    fallbackResult,
+			Error:      fmt.Sprintf("⚠️ %s failed, using fallback result", toolName),
 		}
 
 	default:
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   false,
-			Error:       fmt.Sprintf("%s failed: %v", toolName, lastErr),
+			IsSuccess:  false,
+			Error:      fmt.Sprintf("%s failed: %v", toolName, lastErr),
 		}
 	}
 }
@@ -220,7 +220,7 @@ func isRetryable(err error) bool {
 func (d *Dispatcher) getFallbackResult(toolName string, arguments string) string {
 	switch toolName {
 	case "web_search":
-		return fmt.Sprintf("[]\n// Note: web_search unavailable - search the web manually if needed")
+		return "[]\n// Note: web_search unavailable - search the web manually if needed"
 
 	case "web_fetch":
 		return "// Note: web_fetch unavailable - content could not be retrieved"
@@ -301,8 +301,8 @@ func (d *Dispatcher) ExecuteWithRetry(ctx context.Context, toolCall *session.Too
 			case <-ctx.Done():
 				return ToolResult{
 					ToolCallID: toolCall.ID,
-					IsSuccess:   false,
-					Error:       "operation cancelled",
+					IsSuccess:  false,
+					Error:      "operation cancelled",
 				}
 			case <-time.After(delay):
 				// Continue retry
@@ -337,7 +337,11 @@ func shouldNotRetry(errorMsg string) bool {
 func delayForRetry(attempt int) time.Duration {
 	// Exponential backoff: 100ms, 200ms, 400ms, etc.
 	baseDelay := 100 * time.Millisecond
-	return time.Duration(1<<uint(attempt)) * baseDelay
+	shift := attempt
+	if shift < 0 {
+		shift = 0
+	}
+	return time.Duration(1<<uint(shift)) * baseDelay //nolint:gosec // shift is always non-negative
 }
 
 // ExecuteBatch executes a batch of tool calls
@@ -394,19 +398,19 @@ func (d *Dispatcher) GetToolCapabilities(toolName string) *ToolCapabilities {
 	schema := toolCfg.Tool.Schema()
 
 	return &ToolCapabilities{
-		Name:       schema.Name,
+		Name:        schema.Name,
 		Description: schema.Description,
-		IsReadOnly: isReadOnlyTool(toolName),
-		IsSafe:     isSafeTool(toolName),
+		IsReadOnly:  isReadOnlyTool(toolName),
+		IsSafe:      isSafeTool(toolName),
 	}
 }
 
 // ToolCapabilities represents tool capabilities
 type ToolCapabilities struct {
-	Name       string
+	Name        string
 	Description string
-	IsReadOnly bool
-	IsSafe     bool
+	IsReadOnly  bool
+	IsSafe      bool
 }
 
 // isSafeTool checks if a tool is safe

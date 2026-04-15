@@ -38,7 +38,7 @@ func NewLMStudioProvider(host, model string) *LMStudioProvider {
 	// OpenAI互換APIのbaseURLは baseHost + "/v1"
 	return &LMStudioProvider{
 		OpenAICompatProvider: NewOpenAICompatProvider(baseHost+"/v1", "", model, info),
-		baseHost:            baseHost,
+		baseHost:             baseHost,
 	}
 }
 

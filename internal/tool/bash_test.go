@@ -168,10 +168,10 @@ func TestBashTool_Execute_InvalidJSON(t *testing.T) {
 
 func TestCheckDangerousCommand(t *testing.T) {
 	tests := []struct {
-		name          string
-		command       string
-		expectDanger  bool
-		expectReason  string
+		name         string
+		command      string
+		expectDanger bool
+		expectReason string
 	}{
 		{"rm -rf /", "rm -rf /", true, "Attempting to delete root filesystem"},
 		{"rm -rf ..", "rm -rf ..", true, "Attempting to delete parent directories"},

@@ -9,7 +9,7 @@ type SchemaBuilder struct {
 func NewSchemaBuilder(name string) *SchemaBuilder {
 	return &SchemaBuilder{
 		schema: &FunctionSchema{
-			Name:       name,
+			Name: name,
 			Parameters: &ParameterSchema{
 				Type:       "object",
 				Properties: make(map[string]*PropertyDef),

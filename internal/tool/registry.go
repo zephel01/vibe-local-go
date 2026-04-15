@@ -20,9 +20,9 @@ type Tool interface {
 
 // Registry manages available tools
 type Registry struct {
-	tools      map[string]*ToolConfig
+	tools       map[string]*ToolConfig
 	schemaCache []*FunctionSchema
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 }
 
 // NewRegistry creates a new tool registry
@@ -140,27 +140,27 @@ type Result struct {
 
 // FunctionSchema represents an OpenAI function calling schema
 type FunctionSchema struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Parameters  *ParameterSchema       `json:"parameters,omitempty"`
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	Parameters  *ParameterSchema `json:"parameters,omitempty"`
 }
 
 // ParameterSchema represents function parameters
 type ParameterSchema struct {
-	Type       string                    `json:"type"`
-	Properties map[string]*PropertyDef  `json:"properties,omitempty"`
-	Required   []string                  `json:"required,omitempty"`
+	Type       string                  `json:"type"`
+	Properties map[string]*PropertyDef `json:"properties,omitempty"`
+	Required   []string                `json:"required,omitempty"`
 }
 
 // PropertyDef represents a property definition
 type PropertyDef struct {
-	Type        string            `json:"type"`
-	Description string            `json:"description,omitempty"`
-	Enum        []string          `json:"enum,omitempty"`
-	Default     interface{}       `json:"default,omitempty"`
+	Type        string                  `json:"type"`
+	Description string                  `json:"description,omitempty"`
+	Enum        []string                `json:"enum,omitempty"`
+	Default     interface{}             `json:"default,omitempty"`
 	Properties  map[string]*PropertyDef `json:"properties,omitempty"`
-	Required    []string          `json:"required,omitempty"`
-	Items       *PropertyDef      `json:"items,omitempty"`
+	Required    []string                `json:"required,omitempty"`
+	Items       *PropertyDef            `json:"items,omitempty"`
 }
 
 // NewResult creates a new tool result

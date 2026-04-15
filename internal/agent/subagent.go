@@ -23,13 +23,13 @@ const (
 
 // SubAgent is a lightweight agent that runs independently with its own session
 type SubAgent struct {
-	id            string
-	provider      llm.LLMProvider
-	registry      *tool.Registry
-	session       *session.Session
-	maxTurns      int
-	allowWrites   bool
-	loopDetector  *LoopDetector
+	id           string
+	provider     llm.LLMProvider
+	registry     *tool.Registry
+	session      *session.Session
+	maxTurns     int
+	allowWrites  bool
+	loopDetector *LoopDetector
 }
 
 // SubAgentConfig holds configuration for creating a SubAgent

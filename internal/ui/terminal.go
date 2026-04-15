@@ -239,21 +239,21 @@ func (t *Terminal) ClearScreen() {
 
 // StatusLineUpdater displays a status line with real-time updates
 type StatusLineUpdater struct {
-	terminal       *Terminal
-	startTime      time.Time
-	ticker         *time.Ticker
-	done           chan bool
-	tokenCount     int
-	isRunning      bool
-	mu             sync.RWMutex // Protects tokenCount access
+	terminal   *Terminal
+	startTime  time.Time
+	ticker     *time.Ticker
+	done       chan bool
+	tokenCount int
+	isRunning  bool
+	mu         sync.RWMutex // Protects tokenCount access
 }
 
 // NewStatusLineUpdater creates a new status line updater
 func NewStatusLineUpdater(terminal *Terminal) *StatusLineUpdater {
 	return &StatusLineUpdater{
-		terminal:   terminal,
-		done:       make(chan bool),
-		isRunning:  false,
+		terminal:  terminal,
+		done:      make(chan bool),
+		isRunning: false,
 	}
 }
 

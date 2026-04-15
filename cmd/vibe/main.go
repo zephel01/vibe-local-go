@@ -17,10 +17,10 @@ import (
 	"github.com/zephel01/vibe-local-go/internal/agent"
 	"github.com/zephel01/vibe-local-go/internal/config"
 	"github.com/zephel01/vibe-local-go/internal/llm"
+	"github.com/zephel01/vibe-local-go/internal/mcp"
 	"github.com/zephel01/vibe-local-go/internal/sandbox"
 	"github.com/zephel01/vibe-local-go/internal/security"
 	"github.com/zephel01/vibe-local-go/internal/session"
-	"github.com/zephel01/vibe-local-go/internal/mcp"
 	"github.com/zephel01/vibe-local-go/internal/skill"
 	"github.com/zephel01/vibe-local-go/internal/tool"
 	"github.com/zephel01/vibe-local-go/internal/ui"
@@ -28,7 +28,8 @@ import (
 )
 
 // Version はビルド時に ldflags で上書き可能:
-//   go build -ldflags "-X main.Version=1.1.0"
+//
+//	go build -ldflags "-X main.Version=1.1.0"
 var Version = "1.1.1"
 
 // ShutdownManager handles graceful shutdown
@@ -82,26 +83,26 @@ func (sm *ShutdownManager) Shutdown(reason string) {
 
 var (
 	// CLI flags
-	flagModel            string
-	flagSidecar          string
-	flagHost             string
-	flagProvider         string
-	flagAPIKey           string
-	flagPrompt           string
-	flagAutoConfirm      bool
-	flagResume           string
-	flagSessionID        string
-	flagListSessions     bool
-	flagMaxTokens        int
-	flagTemperature      float64
-	flagContextWindow    int
-	flagVersion          bool
-	flagSandbox          bool
-	flagAutoVenv         bool
-	flagVenvDir          string
-	flagPermissionCheck  bool
-	flagNumCtx           int
-	flagNumGPU           int
+	flagModel           string
+	flagSidecar         string
+	flagHost            string
+	flagProvider        string
+	flagAPIKey          string
+	flagPrompt          string
+	flagAutoConfirm     bool
+	flagResume          string
+	flagSessionID       string
+	flagListSessions    bool
+	flagMaxTokens       int
+	flagTemperature     float64
+	flagContextWindow   int
+	flagVersion         bool
+	flagSandbox         bool
+	flagAutoVenv        bool
+	flagVenvDir         string
+	flagPermissionCheck bool
+	flagNumCtx          int
+	flagNumGPU          int
 )
 
 func init() {
@@ -632,7 +633,7 @@ func createSecurityComponents(cfg *config.Config) (*security.PermissionManager, 
 	return permMgr, validator
 }
 
-func createSession(cfg *config.Config, skillMgr *skill.SkillManager) *session.Session {
+func createSession(cfg *config.Config, skillMgr *skill.Manager) *session.Session {
 	// Generate session ID if not specified
 	sessionID := cfg.SessionID
 	if sessionID == "" {
@@ -651,7 +652,7 @@ func createSession(cfg *config.Config, skillMgr *skill.SkillManager) *session.Se
 	return sess
 }
 
-func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *config.Config, sbMgr *sandbox.Manager, skillMgr *skill.SkillManager, mcpMgr *mcp.Manager, agt *agent.Agent) *ui.CommandHandler {
+func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *config.Config, sbMgr *sandbox.Manager, skillMgr *skill.Manager, mcpMgr *mcp.Manager, agt *agent.Agent) *ui.CommandHandler {
 	cmdHandler := ui.NewCommandHandler(terminal)
 
 	cmdHandler.Register(&ui.SlashCommand{
@@ -851,7 +852,7 @@ func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *
 		Description: "プロバイダーを切替",
 		Handler: func(args string) error {
 			profiles := cfg.GetProviderProfiles()
-			if profiles == nil || len(profiles) == 0 {
+			if len(profiles) == 0 {
 				terminal.PrintColored(ui.ColorYellow, "切替可能なプロバイダーが登録されていません\n")
 				terminal.Println("先に /provider add でプロバイダーを追加してください")
 				return nil
@@ -1039,10 +1040,8 @@ func providerMenu(cfg *config.Config, terminal *ui.Terminal) error {
 		// 登録済みプロバイダー一覧
 		profiles := cfg.GetProviderProfiles()
 		registered := make([]string, 0)
-		if profiles != nil {
-			for key := range profiles {
-				registered = append(registered, key)
-			}
+		for key := range profiles {
+			registered = append(registered, key)
 		}
 
 		// 現在のプロバイダー
@@ -1673,7 +1672,7 @@ func providerEdit(cfg *config.Config, terminal *ui.Terminal, key string) error {
 // providerEditInteractive 編集対象を選択
 func providerEditInteractive(cfg *config.Config, terminal *ui.Terminal) error {
 	profiles := cfg.GetProviderProfiles()
-	if profiles == nil || len(profiles) == 0 {
+	if len(profiles) == 0 {
 		terminal.PrintColored(ui.ColorYellow, "編集可能なプロバイダーがありません\n")
 		return nil
 	}
@@ -1746,7 +1745,7 @@ func providerDelete(cfg *config.Config, terminal *ui.Terminal, key string) error
 // providerDeleteInteractive 削除対象を選択
 func providerDeleteInteractive(cfg *config.Config, terminal *ui.Terminal) error {
 	profiles := cfg.GetProviderProfiles()
-	if profiles == nil || len(profiles) == 0 {
+	if len(profiles) == 0 {
 		terminal.PrintColored(ui.ColorYellow, "削除可能なプロバイダーがありません\n")
 		return nil
 	}
@@ -2705,7 +2704,7 @@ func checkAndPullOllamaModel(host, model string, terminal *ui.Terminal) string {
 }
 
 // registerSkillCommands スキル関連のスラッシュコマンドを登録
-func registerSkillCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, skillMgr *skill.SkillManager) {
+func registerSkillCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, skillMgr *skill.Manager) {
 	cmdHandler.Register(&ui.SlashCommand{
 		Name:        "skills",
 		Description: "利用可能なスキル一覧",

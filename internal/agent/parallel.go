@@ -27,9 +27,9 @@ type AgentTask struct {
 
 // ParallelOrchestrator manages parallel sub-agent execution
 type ParallelOrchestrator struct {
-	provider  llm.LLMProvider
-	registry  *tool.Registry
-	maxAgents int
+	provider   llm.LLMProvider
+	registry   *tool.Registry
+	maxAgents  int
 	onProgress func(agentID string, status string) // Callback for TUI updates
 }
 

@@ -12,7 +12,7 @@ import (
 
 // Checkpoint represents a saved git checkpoint
 type Checkpoint struct {
-	ID        string    // vibe-checkpoint-{timestamp}
+	ID        string // vibe-checkpoint-{timestamp}
 	Timestamp time.Time
 	Message   string
 }

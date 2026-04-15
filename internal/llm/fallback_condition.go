@@ -11,24 +11,24 @@ import (
 
 // FallbackCondition フォールバック条件を定義
 type FallbackCondition struct {
-	OnNetworkError   bool  // 接続不可エラー時にフォールバック
-	OnTimeout        bool  // タイムアウト時にフォールバック
-	OnServerError    bool  // 5xx エラー時にフォールバック
-	OnContextWindow  bool  // コンテキスト超過時にフォールバック
-	OnRateLimit      bool  // レート制限時にフォールバック
-	MaxRetries       int   // プロバイダーごとの最大試行回数
-	RetryDelay       time.Duration // リトライ前の待機時間
+	OnNetworkError  bool          // 接続不可エラー時にフォールバック
+	OnTimeout       bool          // タイムアウト時にフォールバック
+	OnServerError   bool          // 5xx エラー時にフォールバック
+	OnContextWindow bool          // コンテキスト超過時にフォールバック
+	OnRateLimit     bool          // レート制限時にフォールバック
+	MaxRetries      int           // プロバイダーごとの最大試行回数
+	RetryDelay      time.Duration // リトライ前の待機時間
 }
 
 // DefaultFallbackCondition デフォルトのフォールバック条件
 var DefaultFallbackCondition = FallbackCondition{
-	OnNetworkError:   true,
-	OnTimeout:        true,
-	OnServerError:    true,
-	OnContextWindow:  true,
-	OnRateLimit:      false, // レート制限はリトライで対応
-	MaxRetries:       3,
-	RetryDelay:       500 * time.Millisecond,
+	OnNetworkError:  true,
+	OnTimeout:       true,
+	OnServerError:   true,
+	OnContextWindow: true,
+	OnRateLimit:     false, // レート制限はリトライで対応
+	MaxRetries:      3,
+	RetryDelay:      500 * time.Millisecond,
 }
 
 // ErrorClassification エラー分類

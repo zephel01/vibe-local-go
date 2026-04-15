@@ -174,9 +174,9 @@ func (rf *ResponseFilter) RemovePreamble(response string) string {
 func (rf *ResponseFilter) RedactSecrets(response string) string {
 	// APIキー、トークンなどのパターンを検出
 	secretPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`sk-[a-zA-Z0-9]{32,}`),              // OpenAI APIキー
-		regexp.MustCompile(`[a-zA-Z0-9_-]{20,}=`),              // 一般的なキー
-		regexp.MustCompile(`Bearer\s+[a-zA-Z0-9_\-\.]+`),        // Bearerトークン
+		regexp.MustCompile(`sk-[a-zA-Z0-9]{32,}`),                    // OpenAI APIキー
+		regexp.MustCompile(`[a-zA-Z0-9_-]{20,}=`),                    // 一般的なキー
+		regexp.MustCompile(`Bearer\s+[a-zA-Z0-9_\-\.]+`),             // Bearerトークン
 		regexp.MustCompile(`[a-zA-Z0-9_-]{32,}\.[a-zA-Z0-9_-]{10,}`), // JWT風
 	}
 

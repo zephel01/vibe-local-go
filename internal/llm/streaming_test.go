@@ -66,7 +66,7 @@ func TestStreamEvent_Done(t *testing.T) {
 
 func TestToken(t *testing.T) {
 	token := Token{
-		Text:        "Hello",
+		Text:         "Hello",
 		FinishReason: "",
 	}
 
@@ -81,7 +81,7 @@ func TestToken(t *testing.T) {
 
 func TestToken_WithFinishReason(t *testing.T) {
 	token := Token{
-		Text:        "",
+		Text:         "",
 		FinishReason: "stop",
 	}
 

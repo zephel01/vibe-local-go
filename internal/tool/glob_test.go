@@ -418,4 +418,3 @@ func TestGlobTool_Execute_RecursivePatternWithDoublestar(t *testing.T) {
 		})
 	}
 }
-

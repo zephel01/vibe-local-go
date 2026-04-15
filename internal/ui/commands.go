@@ -14,9 +14,9 @@ type SlashCommand struct {
 
 // CommandHandler スラッシュコマンドハンドラ
 type CommandHandler struct {
-	terminal   *Terminal
-	commands   map[string]*SlashCommand
-	aliases    map[string]string // エイリアス: "exit" -> "quit"
+	terminal *Terminal
+	commands map[string]*SlashCommand
+	aliases  map[string]string // エイリアス: "exit" -> "quit"
 }
 
 // NewCommandHandler 新しいコマンドハンドラを作成

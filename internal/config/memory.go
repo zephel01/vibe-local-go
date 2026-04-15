@@ -14,7 +14,7 @@ const (
 
 // MemoryInfo holds system memory information
 type MemoryInfo struct {
-	TotalBytes uint64
+	TotalBytes     uint64
 	AvailableBytes uint64
 }
 

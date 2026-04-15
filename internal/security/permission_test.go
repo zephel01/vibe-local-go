@@ -159,7 +159,7 @@ func TestPermissionManager_SetPermission(t *testing.T) {
 	}
 
 	// Check if permission is denied
-	allowed, reason, err = pm.CheckPermission("bash", map[string]interface{}{"command": "ls"})
+	allowed, _, err = pm.CheckPermission("bash", map[string]interface{}{"command": "ls"})
 	if err == nil {
 		t.Errorf("CheckPermission() expected error for denied tool, got nil")
 	}

@@ -81,7 +81,7 @@ func TestMessage_Marshal(t *testing.T) {
 				ID:   "call_123",
 				Type: "function",
 				Function: FunctionCall{
-					Name: "search",
+					Name:      "search",
 					Arguments: json.RawMessage(`{"query":"test"}`),
 				},
 			},
@@ -276,7 +276,7 @@ func TestChatRequest_WithTools(t *testing.T) {
 			{
 				Type: "function",
 				Function: FunctionDef{
-					Name: "search",
+					Name:        "search",
 					Description: "Search the web",
 				},
 			},

@@ -17,7 +17,7 @@ type CompactionResult struct {
 	OriginalTokenCount int
 	NewTokenCount      int
 	CompactedMessages  int
-	RemainingMessages   int
+	RemainingMessages  int
 	Summary            string
 }
 
@@ -280,7 +280,7 @@ func (s *Session) CompactToTarget(targetTokens int) *CompactionResult {
 		OriginalTokenCount: originalCount,
 		NewTokenCount:      s.TokenEstimate,
 		CompactedMessages:  originalMessages - len(s.Messages),
-		RemainingMessages:   len(s.Messages),
+		RemainingMessages:  len(s.Messages),
 		Summary:            "Compacted to target token count",
 	}
 

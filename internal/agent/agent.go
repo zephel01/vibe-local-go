@@ -41,9 +41,9 @@ type Agent struct {
 	loopDetector          *LoopDetector
 	spinner               *ui.ToolSpinner
 	statusLine            *ui.StatusLineUpdater
-	scriptValidationCount int // Track number of script validation attempts
-	autoTestEnabled       bool // Enable automatic test execution after file edits
-	planMode              bool // When true, reject write_file/edit_file/bash
+	scriptValidationCount int           // Track number of script validation attempts
+	autoTestEnabled       bool          // Enable automatic test execution after file edits
+	planMode              bool          // When true, reject write_file/edit_file/bash
 	cachedLLMTools        []llm.ToolDef // Cached tool schema conversion (computed once)
 }
 
@@ -280,24 +280,6 @@ func (a *Agent) callLLM(ctx context.Context, messages []map[string]interface{}, 
 	return parseChatResponse(resp)
 }
 
-// executeToolCalls executes tool calls
-func (a *Agent) executeToolCalls(ctx context.Context, toolCalls []session.ToolCall) ([]session.ToolResult, error) {
-	sessionResults := make([]session.ToolResult, 0, len(toolCalls))
-
-	for _, tc := range toolCalls {
-		result := a.executeSingleTool(ctx, &tc)
-		sessionResults = append(sessionResults, session.ToolResult{
-			Content:   result.Content,
-			ToolCallID: result.ToolCallID,
-		})
-
-		// Track tool calls for loop detection
-		a.loopDetector.RecordToolCall(tc.Function.Name, tc.Function.Arguments)
-	}
-
-	return sessionResults, nil
-}
-
 // executeToolCallsWithResults executes tool calls and returns agent ToolResults for error checking
 func (a *Agent) executeToolCallsWithResults(ctx context.Context, toolCalls []session.ToolCall) ([]session.ToolResult, []ToolResult, error) {
 	sessionResults := make([]session.ToolResult, 0, len(toolCalls))
@@ -306,7 +288,7 @@ func (a *Agent) executeToolCallsWithResults(ctx context.Context, toolCalls []ses
 	for _, tc := range toolCalls {
 		result := a.executeSingleTool(ctx, &tc)
 		sessionResults = append(sessionResults, session.ToolResult{
-			Content:   result.Content,
+			Content:    result.Content,
 			ToolCallID: result.ToolCallID,
 		})
 		agentResults = append(agentResults, result)
@@ -333,8 +315,8 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 		if writeTools[toolName] {
 			return ToolResult{
 				ToolCallID: toolCall.ID,
-				IsSuccess:   false,
-				Error:       fmt.Sprintf("Cannot execute %s in plan mode. Use '/plan off' to allow modifications.", toolName),
+				IsSuccess:  false,
+				Error:      fmt.Sprintf("Cannot execute %s in plan mode. Use '/plan off' to allow modifications.", toolName),
 			}
 		}
 	}
@@ -344,8 +326,8 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 	if !exists {
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   false,
-			Error:       fmt.Sprintf("Tool not found: %s", toolName),
+			IsSuccess:  false,
+			Error:      fmt.Sprintf("Tool not found: %s", toolName),
 		}
 	}
 	toolInst := toolCfg.Tool
@@ -356,8 +338,8 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 		a.LogToolError(toolName, err, arguments, 0)
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   false,
-			Error:       fmt.Sprintf("Permission error: %v", err),
+			IsSuccess:  false,
+			Error:      fmt.Sprintf("Permission error: %v", err),
 		}
 	}
 
@@ -369,15 +351,15 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 			a.LogToolError(toolName, err, arguments, 0)
 			return ToolResult{
 				ToolCallID: toolCall.ID,
-				IsSuccess:   false,
-				Error:       fmt.Sprintf("Permission denied: %v", err),
+				IsSuccess:  false,
+				Error:      fmt.Sprintf("Permission denied: %v", err),
 			}
 		}
 		if !allowed {
 			return ToolResult{
 				ToolCallID: toolCall.ID,
-				IsSuccess:   false,
-				Error:       "User denied permission",
+				IsSuccess:  false,
+				Error:      "User denied permission",
 			}
 		}
 	}
@@ -404,23 +386,23 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 				a.terminal.PrintWarning(fmt.Sprintf("⚠️ Optional tool %s failed, continuing: %v", toolName, err))
 				return ToolResult{
 					ToolCallID: toolCall.ID,
-					IsSuccess:   true,
-					Content:     fmt.Sprintf("// Tool %s unavailable: %v", toolName, err),
-					Error:       "",
+					IsSuccess:  true,
+					Content:    fmt.Sprintf("// Tool %s unavailable: %v", toolName, err),
+					Error:      "",
 				}
 			case tool.ToolCategoryEnhancing:
 				a.terminal.PrintWarning(fmt.Sprintf("⚠️ Enhancing tool %s failed, using fallback", toolName))
 				return ToolResult{
 					ToolCallID: toolCall.ID,
-					IsSuccess:   true,
-					Content:     a.getFallbackResult(toolName),
-					Error:       fmt.Sprintf("Tool %s failed (using fallback)", toolName),
+					IsSuccess:  true,
+					Content:    a.getFallbackResult(toolName),
+					Error:      fmt.Sprintf("Tool %s failed (using fallback)", toolName),
 				}
 			case tool.ToolCategoryEssential:
 				return ToolResult{
 					ToolCallID: toolCall.ID,
-					IsSuccess:   false,
-					Error:       err.Error(),
+					IsSuccess:  false,
+					Error:      err.Error(),
 				}
 			}
 		}
@@ -428,8 +410,8 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 		// Default behavior for tools without category
 		return ToolResult{
 			ToolCallID: toolCall.ID,
-			IsSuccess:   false,
-			Error:       err.Error(),
+			IsSuccess:  false,
+			Error:      err.Error(),
 		}
 	}
 
@@ -453,9 +435,9 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 
 	return ToolResult{
 		ToolCallID: toolCall.ID,
-		IsSuccess:   !toolResult.IsError,
-		Content:     toolResult.Output,
-		Error:       toolResult.Error,
+		IsSuccess:  !toolResult.IsError,
+		Content:    toolResult.Output,
+		Error:      toolResult.Error,
 	}
 }
 
@@ -548,7 +530,7 @@ func parseChatResponse(resp *llm.ChatResponse) (*ChatResponse, error) {
 
 		result.ToolCalls = append(result.ToolCalls, session.ToolCall{
 			ID:   tc.ID,
-			Type:  tc.Type,
+			Type: tc.Type,
 			Function: session.FunctionCall{
 				Name:      tc.Function.Name,
 				Arguments: argsStr,
@@ -562,9 +544,9 @@ func parseChatResponse(resp *llm.ChatResponse) (*ChatResponse, error) {
 // ToolResult represents a tool execution result
 type ToolResult struct {
 	ToolCallID string
-	IsSuccess   bool
-	Content     string
-	Error       string
+	IsSuccess  bool
+	Content    string
+	Error      string
 }
 
 // convertTools converts tool schemas to LLM format
@@ -654,7 +636,7 @@ func (a *Agent) ExtractToolCallsFromXML(text string, knownTools []string) ([]ses
 
 		sessionToolCalls = append(sessionToolCalls, session.ToolCall{
 			ID:   tc.ID,
-			Type:  tc.Type,
+			Type: tc.Type,
 			Function: session.FunctionCall{
 				Name:      tc.Function.Name,
 				Arguments: argsStr,

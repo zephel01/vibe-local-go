@@ -101,11 +101,11 @@ func TestAddToolResults(t *testing.T) {
 
 	results := []ToolResult{
 		{
-			Content:   "file1.txt\nfile2.txt",
+			Content:    "file1.txt\nfile2.txt",
 			ToolCallID: "call_1",
 		},
 		{
-			Content:   "success",
+			Content:    "success",
 			ToolCallID: "call_2",
 		},
 	}

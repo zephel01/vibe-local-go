@@ -255,7 +255,7 @@ func IsSafePath(path string) bool {
 
 // Errors
 var (
-	ErrPathTraversal    = NewValidationError("path traversal detected")
+	ErrPathTraversal   = NewValidationError("path traversal detected")
 	ErrUnsafePath      = NewValidationError("access to unsafe path denied")
 	ErrPathOutsideBase = NewValidationError("path outside allowed directories")
 	ErrSymlinkToUnsafe = NewValidationError("symlink points to unsafe location")
