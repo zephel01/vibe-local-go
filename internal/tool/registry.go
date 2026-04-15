@@ -20,7 +20,7 @@ type Tool interface {
 
 // Registry manages available tools
 type Registry struct {
-	tools       map[string]*ToolConfig
+	tools       map[string]*Config
 	schemaCache []*FunctionSchema
 	mu          sync.RWMutex
 }
@@ -28,7 +28,7 @@ type Registry struct {
 // NewRegistry creates a new tool registry
 func NewRegistry() *Registry {
 	return &Registry{
-		tools: make(map[string]*ToolConfig),
+		tools: make(map[string]*Config),
 	}
 }
 
@@ -38,8 +38,8 @@ func (r *Registry) Register(tool Tool) {
 }
 
 // RegisterWithOptions registers a tool with custom options
-func (r *Registry) RegisterWithOptions(name string, tool Tool, opts ...ToolOption) {
-	cfg := DefaultToolConfig(name, tool)
+func (r *Registry) RegisterWithOptions(name string, tool Tool, opts ...Option) {
+	cfg := DefaultConfig(name, tool)
 	cfg.ApplyOptions(opts...)
 
 	r.mu.Lock()
@@ -50,7 +50,7 @@ func (r *Registry) RegisterWithOptions(name string, tool Tool, opts ...ToolOptio
 }
 
 // Get retrieves a tool config by name
-func (r *Registry) Get(name string) (*ToolConfig, bool) {
+func (r *Registry) Get(name string) (*Config, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -71,7 +71,7 @@ func (r *Registry) GetTool(name string) (Tool, bool) {
 }
 
 // GetMetadata retrieves tool metadata by name
-func (r *Registry) GetMetadata(name string) (*ToolMetadata, bool) {
+func (r *Registry) GetMetadata(name string) (*Metadata, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

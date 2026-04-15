@@ -44,19 +44,19 @@ vibe-local-go を Ollama 専用から、複数の LLM バックエンドに対�
 
 ```
 現在 (v1.1.0):
-Agent → LLMProvider (インターフェース) → ProviderChain → 複数プロバイダー
+Agent → Provider (インターフェース) → ProviderChain → 複数プロバイダー
 
 フロー:
 1. main.go: createProviderWithChain() でプロバイダー初期化
 2. --provider 指定あり → createProvider() + buildChainWithFallbacks()
 3. --provider 未指定  → AutoDetect() → 自動チェーン構築
-4. Agent は LLMProvider インターフェースのみ知る（具象型に依存しない）
+4. Agent は Provider インターフェースのみ知る（具象型に依存しない）
 5. ProviderChain が FallbackCondition に基づいてフォールバック制御
 ```
 
 ### 解決済みの課題（旧アーキテクチャからの改善）
 
-1. ✅ Agent が `LLMProvider` インターフェースに依存（具象型依存を排除）
+1. ✅ Agent が `Provider` インターフェースに依存（具象型依存を排除）
 2. ✅ Ollama 固有機能は `ModelManager` 拡張インターフェースに分離
 3. ✅ Config が複数プロバイダー対応（`Provider`, `CloudAPIKeys` フィールド）
 4. ✅ main.go がゼロコンフィグ対応（`createProviderWithChain` で自動検出）
@@ -78,7 +78,7 @@ Agent → LLMProvider (インターフェース) → ProviderChain → 複数プ
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                        Agent Layer                               │
-│  agent.go: LLMProvider インターフェースのみ知る                    │
+│  agent.go: Provider インターフェースのみ知る                    │
 └───────────────────────────┬──────────────────────────────────────┘
                             │
 ┌───────────────────────────▼──────────────────────────────────────┐
@@ -119,8 +119,8 @@ Agent → LLMProvider (インターフェース) → ProviderChain → 複数プ
 ```go
 package llm
 
-// LLMProvider - 全プロバイダーが実装する最小インターフェース
-type LLMProvider interface {
+// Provider - 全プロバイダーが実装する最小インターフェース
+type Provider interface {
     Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
     ChatStream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error)
     CheckHealth(ctx context.Context) error
@@ -304,7 +304,7 @@ const (
 
 // ChainEntry チェーンエントリ
 type ChainEntry struct {
-    Provider LLMProvider
+    Provider Provider
     Role     ChainRole
     Priority int // 低い値が優先
 }
@@ -651,15 +651,15 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req *ChatRequest) (*Cha
 
 ```go
 type ModelRouter struct {
-    mainProvider    LLMProvider
-    sidecarProvider LLMProvider
+    mainProvider    Provider
+    sidecarProvider Provider
     mainModel       string    // e.g. "qwen3:8b"
     sidecarModel    string    // e.g. "qwen3:32b"
     useSidecar      bool
 }
 ```
 
-- `LLMProvider` インターフェースを実装（Agent から透過的に使える）
+- `Provider` インターフェースを実装（Agent から透過的に使える）
 - `AutoSelectModel(taskType)` — タスク種別に応じて自動選択（code_generation → main、code_review → sidecar）
 - `SelectModelByMemory(memoryGB)` — メモリ量に応じた推奨モデル選択
 - `SwapModelHot(ctx, toSidecar)` — 実行時ホットスワップ
@@ -675,16 +675,16 @@ type ModelRouter struct {
 
 ### Phase 1: インターフェース抽出 ✅ 完了
 
-- `LLMProvider` インターフェース定義 (`provider.go`)
+- `Provider` インターフェース定義 (`provider.go`)
 - `OpenAICompatProvider` 実装 (`ollama.go` — Ollama = OpenAI互換ベース)
 - `ModelManager`, `ModelSwitcher` 拡張インターフェース
-- `Agent.provider llm.LLMProvider` に変更済み
+- `Agent.provider llm.Provider` に変更済み
 - 既存テスト全パス
 
 ファイル構成:
 ```
 internal/llm/
-  provider.go           # LLMProvider インターフェース + Features + ModelManager
+  provider.go           # Provider インターフェース + Features + ModelManager
   ollama.go             # Ollama プロバイダー（OpenAI互換 + モデル管理）
   chain.go              # ProviderChain（フォールバック付き）
   fallback_condition.go # エラー分類 + フォールバック条件
@@ -760,21 +760,21 @@ config.json の "OllamaHost" も引き続き動作。
 
 ## Agent 側の変更点（実装済み）
 
-Agent は `llm.LLMProvider` インターフェースのみに依存。
+Agent は `llm.Provider` インターフェースのみに依存。
 具象型（Ollama, ProviderChain 等）を知らない。
 
 ```go
 type Agent struct {
-    provider llm.LLMProvider  // インターフェース依存（具象型に依存しない）
+    provider llm.Provider  // インターフェース依存（具象型に依存しない）
     ...
 }
 
-func NewAgent(provider llm.LLMProvider, ...) *Agent {
+func NewAgent(provider llm.Provider, ...) *Agent {
     return &Agent{provider: provider, ...}
 }
 ```
 
-`main.go` 側で `createProviderWithChain()` が返す `LLMProvider`（単一プロバイダーまたは ProviderChain）を Agent に渡す。
+`main.go` 側で `createProviderWithChain()` が返す `Provider`（単一プロバイダーまたは ProviderChain）を Agent に渡す。
 Agent からは単一プロバイダーもチェーンも同じインターフェースで扱える。
 
 ---
@@ -852,7 +852,7 @@ vibe --provider openrouter --api-key $OPENROUTER_API_KEY --model anthropic/claud
 ### 設計のポイント
 
 1. **OpenAI互換がベース**: 1つの実装で Ollama / llama-server / LM Studio / LiteLLM / クラウドをカバー
-2. **LLMProvider インターフェース**: Agent が具象型に依存しない設計
+2. **Provider インターフェース**: Agent が具象型に依存しない設計
 3. **FallbackCondition**: エラー分類ベースの柔軟なフォールバック制御
 4. **自動検出優先**: `--provider` 未指定で goroutine 並行検出 → チェーン自動構築
 5. **フォールバックチェーン**: ローカル失敗 → 別ローカル → クラウド（自動 + 手動切り替え）

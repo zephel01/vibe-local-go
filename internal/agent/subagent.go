@@ -24,7 +24,7 @@ const (
 // SubAgent is a lightweight agent that runs independently with its own session
 type SubAgent struct {
 	id           string
-	provider     llm.LLMProvider
+	provider     llm.Provider
 	registry     *tool.Registry
 	session      *session.Session
 	maxTurns     int
@@ -35,7 +35,7 @@ type SubAgent struct {
 // SubAgentConfig holds configuration for creating a SubAgent
 type SubAgentConfig struct {
 	ID           string
-	Provider     llm.LLMProvider
+	Provider     llm.Provider
 	Registry     *tool.Registry
 	SystemPrompt string
 	MaxTurns     int

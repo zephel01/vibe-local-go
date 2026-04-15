@@ -32,7 +32,6 @@ const (
 
 // BashTool executes bash commands
 type BashTool struct {
-	baseDir    string
 	sandboxDir string // サンドボックスディレクトリのパス（PATH参照用、cmd.Dirには使わない）
 	autoVenv   bool   // Python実行時に自動で.venvをactivateするか
 	venvDir    string // 仮想環境ディレクトリパス（デフォルト: .venv）

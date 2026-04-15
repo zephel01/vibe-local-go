@@ -326,7 +326,7 @@ func GetLocalProviders() []LocalProviderDef {
 // NewCloudProvider クラウドプロバイダーを作成（OpenAI互換）
 // BaseURL にはバージョンパスまで含まれている前提（例: /v1, /v4, /v1beta/openai）
 // OpenRouter のみ固有ヘッダー付きの専用実装を使用
-func NewCloudProvider(providerKey, apiKey, model string) LLMProvider {
+func NewCloudProvider(providerKey, apiKey, model string) Provider {
 	def := GetCloudProviderDef(providerKey)
 	if def == nil {
 		// fallback to openrouter

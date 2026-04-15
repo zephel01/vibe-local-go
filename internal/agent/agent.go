@@ -31,7 +31,7 @@ const (
 
 // Agent represents the main agent loop
 type Agent struct {
-	provider              llm.LLMProvider
+	provider              llm.Provider
 	registry              *tool.Registry
 	permissionMgr         *security.PermissionManager
 	validator             *security.PathValidator
@@ -49,7 +49,7 @@ type Agent struct {
 
 // NewAgent creates a new agent
 func NewAgent(
-	provider llm.LLMProvider,
+	provider llm.Provider,
 	registry *tool.Registry,
 	permissionMgr *security.PermissionManager,
 	validator *security.PathValidator,
@@ -382,7 +382,7 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 		// Handle based on tool category
 		if toolCfg.Metadata != nil {
 			switch toolCfg.Metadata.Category {
-			case tool.ToolCategoryOptional:
+			case tool.CategoryOptional:
 				a.terminal.PrintWarning(fmt.Sprintf("⚠️ Optional tool %s failed, continuing: %v", toolName, err))
 				return ToolResult{
 					ToolCallID: toolCall.ID,
@@ -390,7 +390,7 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 					Content:    fmt.Sprintf("// Tool %s unavailable: %v", toolName, err),
 					Error:      "",
 				}
-			case tool.ToolCategoryEnhancing:
+			case tool.CategoryEnhancing:
 				a.terminal.PrintWarning(fmt.Sprintf("⚠️ Enhancing tool %s failed, using fallback", toolName))
 				return ToolResult{
 					ToolCallID: toolCall.ID,
@@ -398,7 +398,7 @@ func (a *Agent) executeSingleTool(ctx context.Context, toolCall *session.ToolCal
 					Content:    a.getFallbackResult(toolName),
 					Error:      fmt.Sprintf("Tool %s failed (using fallback)", toolName),
 				}
-			case tool.ToolCategoryEssential:
+			case tool.CategoryEssential:
 				return ToolResult{
 					ToolCallID: toolCall.ID,
 					IsSuccess:  false,

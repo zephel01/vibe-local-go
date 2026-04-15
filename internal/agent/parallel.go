@@ -18,8 +18,8 @@ const (
 	ParallelTimeout = 10 * time.Minute
 )
 
-// AgentTask describes a task to run in parallel
-type AgentTask struct {
+// Task describes a task to run in parallel
+type Task struct {
 	Description  string `json:"description"`
 	SystemPrompt string `json:"system_prompt,omitempty"`
 	AllowWrites  bool   `json:"allow_writes,omitempty"`
@@ -27,14 +27,14 @@ type AgentTask struct {
 
 // ParallelOrchestrator manages parallel sub-agent execution
 type ParallelOrchestrator struct {
-	provider   llm.LLMProvider
+	provider   llm.Provider
 	registry   *tool.Registry
 	maxAgents  int
 	onProgress func(agentID string, status string) // Callback for TUI updates
 }
 
 // NewParallelOrchestrator creates a new parallel orchestrator
-func NewParallelOrchestrator(provider llm.LLMProvider, registry *tool.Registry) *ParallelOrchestrator {
+func NewParallelOrchestrator(provider llm.Provider, registry *tool.Registry) *ParallelOrchestrator {
 	return &ParallelOrchestrator{
 		provider:  provider,
 		registry:  registry,
@@ -48,7 +48,7 @@ func (po *ParallelOrchestrator) SetProgressCallback(cb func(agentID string, stat
 }
 
 // RunParallel executes multiple tasks in parallel
-func (po *ParallelOrchestrator) RunParallel(ctx context.Context, tasks []AgentTask) []SubAgentResult {
+func (po *ParallelOrchestrator) RunParallel(ctx context.Context, tasks []Task) []SubAgentResult {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (po *ParallelOrchestrator) RunParallel(ctx context.Context, tasks []AgentTa
 
 	for i, task := range tasks {
 		wg.Add(1)
-		go func(idx int, t AgentTask) {
+		go func(idx int, t Task) {
 			defer wg.Done()
 
 			agentID := fmt.Sprintf("agent-%d", idx+1)

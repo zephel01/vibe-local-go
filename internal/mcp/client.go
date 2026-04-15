@@ -40,21 +40,21 @@ func (e *JSONRPCError) Error() string {
 	return fmt.Sprintf("MCP error %d: %s", e.Code, e.Message)
 }
 
-// MCPToolSchema MCPサーバーから返されるツールスキーマ
-type MCPToolSchema struct {
+// ToolSchema MCPサーバーから返されるツールスキーマ
+type ToolSchema struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 }
 
-// MCPToolCallResult ツール呼び出し結果
-type MCPToolCallResult struct {
-	Content []MCPContent `json:"content"`
-	IsError bool         `json:"isError,omitempty"`
+// ToolCallResult ツール呼び出し結果
+type ToolCallResult struct {
+	Content []Content `json:"content"`
+	IsError bool      `json:"isError,omitempty"`
 }
 
-// MCPContent ツール結果のコンテンツ
-type MCPContent struct {
+// Content ツール結果のコンテンツ
+type Content struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
 }
@@ -67,7 +67,7 @@ type Client struct {
 	stdout  *bufio.Scanner
 	mu      sync.Mutex
 	nextID  int64
-	tools   []MCPToolSchema
+	tools   []ToolSchema
 	running bool
 }
 
@@ -138,14 +138,14 @@ func (c *Client) Initialize() error {
 }
 
 // ListTools ツール一覧を取得
-func (c *Client) ListTools() ([]MCPToolSchema, error) {
+func (c *Client) ListTools() ([]ToolSchema, error) {
 	resp, err := c.call("tools/list", nil)
 	if err != nil {
 		return nil, fmt.Errorf("tools/list failed: %w", err)
 	}
 
 	var result struct {
-		Tools []MCPToolSchema `json:"tools"`
+		Tools []ToolSchema `json:"tools"`
 	}
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("tools/list parse error: %w", err)
@@ -156,7 +156,7 @@ func (c *Client) ListTools() ([]MCPToolSchema, error) {
 }
 
 // CallTool ツールを呼び出す
-func (c *Client) CallTool(name string, arguments json.RawMessage) (*MCPToolCallResult, error) {
+func (c *Client) CallTool(name string, arguments json.RawMessage) (*ToolCallResult, error) {
 	params := map[string]interface{}{
 		"name": name,
 	}
@@ -174,7 +174,7 @@ func (c *Client) CallTool(name string, arguments json.RawMessage) (*MCPToolCallR
 		return nil, fmt.Errorf("tools/call failed: %w", err)
 	}
 
-	var result MCPToolCallResult
+	var result ToolCallResult
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("tools/call parse error: %w", err)
 	}
@@ -212,7 +212,7 @@ func (c *Client) Name() string {
 }
 
 // GetTools キャッシュされたツール一覧を返す
-func (c *Client) GetTools() []MCPToolSchema {
+func (c *Client) GetTools() []ToolSchema {
 	return c.tools
 }
 

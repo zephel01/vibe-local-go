@@ -77,7 +77,7 @@ func TestJoinStrings(t *testing.T) {
 
 func TestRunParallel_EmptyTasks(t *testing.T) {
 	po := NewParallelOrchestrator(nil, nil)
-	results := po.RunParallel(context.TODO(), []AgentTask{})
+	results := po.RunParallel(context.TODO(), []Task{})
 	if results != nil {
 		t.Error("expected nil results for empty tasks")
 	}

@@ -703,11 +703,6 @@ func (le *LineEditor) redrawMultiLine(prompt string, buf []rune, cursor int) {
 	le.prevCursorLine = curLine
 }
 
-// redrawLine 単一行の再描画（後方互換用）
-func (le *LineEditor) redrawLine(prompt string, buf []rune, cursor int) {
-	le.redrawMultiLine(prompt, buf, cursor)
-}
-
 // displayWidth rune列の表示幅を計算（CJK文字=2, ASCII=1）
 func displayWidth(rs []rune) int {
 	w := 0

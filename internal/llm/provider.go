@@ -2,8 +2,8 @@ package llm
 
 import "context"
 
-// LLMProvider - 全プロバイダーが実装する最小インターフェース
-type LLMProvider interface {
+// Provider - 全プロバイダーが実装する最小インターフェース
+type Provider interface {
 	// Chat 同期チャットリクエスト（ツール使用時）
 	Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
 

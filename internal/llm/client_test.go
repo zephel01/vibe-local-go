@@ -396,6 +396,6 @@ func TestClientGetProvider(t *testing.T) {
 		t.Error("GetProvider() should return non-nil provider")
 	}
 
-	// Provider should implement LLMProvider
-	var _ LLMProvider = provider
+	// Provider should implement Provider
+	var _ Provider = provider
 }

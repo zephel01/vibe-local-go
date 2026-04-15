@@ -9,17 +9,17 @@ import (
 	"github.com/zephel01/vibe-local-go/internal/tool"
 )
 
-// MCPToolAdapter MCPツールを tool.Tool インターフェースに適合させるアダプター
-type MCPToolAdapter struct {
+// ToolAdapter MCPツールを tool.Tool インターフェースに適合させるアダプター
+type ToolAdapter struct {
 	serverName   string
-	toolSchema   MCPToolSchema
+	toolSchema   ToolSchema
 	manager      *Manager
 	registeredAs string // "mcp_{server}_{tool}"
 }
 
-// NewMCPToolAdapter MCPツールアダプターを作成
-func NewMCPToolAdapter(serverName string, schema MCPToolSchema, manager *Manager) *MCPToolAdapter {
-	return &MCPToolAdapter{
+// NewToolAdapter MCPツールアダプターを作成
+func NewToolAdapter(serverName string, schema ToolSchema, manager *Manager) *ToolAdapter {
+	return &ToolAdapter{
 		serverName:   serverName,
 		toolSchema:   schema,
 		manager:      manager,
@@ -28,12 +28,12 @@ func NewMCPToolAdapter(serverName string, schema MCPToolSchema, manager *Manager
 }
 
 // Name ツール名を返す ("mcp_{server}_{tool}" 形式)
-func (a *MCPToolAdapter) Name() string {
+func (a *ToolAdapter) Name() string {
 	return a.registeredAs
 }
 
 // Execute ツールを実行
-func (a *MCPToolAdapter) Execute(ctx context.Context, params json.RawMessage) (*tool.Result, error) {
+func (a *ToolAdapter) Execute(ctx context.Context, params json.RawMessage) (*tool.Result, error) {
 	result, err := a.manager.CallTool(a.serverName, a.toolSchema.Name, params)
 	if err != nil {
 		return tool.NewErrorResult(err), nil
@@ -62,7 +62,7 @@ func (a *MCPToolAdapter) Execute(ctx context.Context, params json.RawMessage) (*
 }
 
 // Schema OpenAI function calling スキーマを返す
-func (a *MCPToolAdapter) Schema() *tool.FunctionSchema {
+func (a *ToolAdapter) Schema() *tool.FunctionSchema {
 	schema := &tool.FunctionSchema{
 		Name:        a.registeredAs,
 		Description: a.toolSchema.Description,
@@ -105,7 +105,7 @@ func RegisterMCPTools(registry *tool.Registry, manager *Manager) int {
 
 	for serverName, tools := range allTools {
 		for _, t := range tools {
-			adapter := NewMCPToolAdapter(serverName, t, manager)
+			adapter := NewToolAdapter(serverName, t, manager)
 			registry.Register(adapter)
 			count++
 		}

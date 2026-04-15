@@ -330,7 +330,7 @@ func (pm *PersistenceManager) Exists(sessionID string) bool {
 }
 
 // GetSessionInfo returns information about a session
-func (pm *PersistenceManager) GetSessionInfo(sessionID string) (*SessionInfo, error) {
+func (pm *PersistenceManager) GetSessionInfo(sessionID string) (*Info, error) {
 	sessionFile := filepath.Join(pm.baseDir, SessionDir, sessionID+".jsonl")
 	info, err := os.Stat(sessionFile)
 	if err != nil {
@@ -343,7 +343,7 @@ func (pm *PersistenceManager) GetSessionInfo(sessionID string) (*SessionInfo, er
 		return nil, err
 	}
 
-	return &SessionInfo{
+	return &Info{
 		ID:           sessionID,
 		MessageCount: session.GetMessageCount(),
 		TokenCount:   session.GetTokenCount(),
@@ -352,8 +352,8 @@ func (pm *PersistenceManager) GetSessionInfo(sessionID string) (*SessionInfo, er
 	}, nil
 }
 
-// SessionInfo represents session metadata
-type SessionInfo struct {
+// Info represents session metadata
+type Info struct {
 	ID           string
 	MessageCount int
 	TokenCount   int

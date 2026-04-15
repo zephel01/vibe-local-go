@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// ModelRouter モデルルーター（LLMProviderベース）
+// ModelRouter モデルルーター（Providerベース）
 type ModelRouter struct {
-	mainProvider    LLMProvider
-	sidecarProvider LLMProvider
+	mainProvider    Provider
+	sidecarProvider Provider
 	mainModel       string
 	sidecarModel    string
 	useSidecar      bool
@@ -20,7 +20,7 @@ type ModelRouter struct {
 }
 
 // NewModelRouter 新しいモデルルーターを作成
-func NewModelRouter(mainProvider, sidecarProvider LLMProvider, mainModel, sidecarModel string) *ModelRouter {
+func NewModelRouter(mainProvider, sidecarProvider Provider, mainModel, sidecarModel string) *ModelRouter {
 	return &ModelRouter{
 		mainProvider:    mainProvider,
 		sidecarProvider: sidecarProvider,
@@ -81,7 +81,7 @@ func (mr *ModelRouter) GetActiveModel() string {
 }
 
 // GetActiveProvider アクティブなプロバイダーを取得
-func (mr *ModelRouter) GetActiveProvider() LLMProvider {
+func (mr *ModelRouter) GetActiveProvider() Provider {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 

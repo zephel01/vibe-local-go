@@ -10,22 +10,22 @@ import (
 	"sync"
 )
 
-// MCPServerConfig mcp.json 内の1サーバー設定
-type MCPServerConfig struct {
+// ServerConfig mcp.json 内の1サーバー設定
+type ServerConfig struct {
 	Command string            `json:"command"`
 	Args    []string          `json:"args"`
 	Env     map[string]string `json:"env,omitempty"`
 }
 
-// MCPConfigFile mcp.json のルート構造
-type MCPConfigFile struct {
-	MCPServers map[string]MCPServerConfig `json:"mcpServers"`
+// ConfigFile mcp.json のルート構造
+type ConfigFile struct {
+	MCPServers map[string]ServerConfig `json:"mcpServers"`
 }
 
 // Manager 複数のMCPサーバーを管理
 type Manager struct {
 	clients map[string]*Client
-	configs map[string]MCPServerConfig
+	configs map[string]ServerConfig
 	mu      sync.RWMutex
 }
 
@@ -33,7 +33,7 @@ type Manager struct {
 func NewManager() *Manager {
 	return &Manager{
 		clients: make(map[string]*Client),
-		configs: make(map[string]MCPServerConfig),
+		configs: make(map[string]ServerConfig),
 	}
 }
 
@@ -52,7 +52,7 @@ func (m *Manager) LoadConfig() error {
 			continue
 		}
 
-		var cfg MCPConfigFile
+		var cfg ConfigFile
 		if err := json.Unmarshal(data, &cfg); err != nil {
 			return fmt.Errorf("mcp.json パースエラー (%s): %w", p, err)
 		}
@@ -132,11 +132,11 @@ func (m *Manager) StopAll() {
 }
 
 // GetAllTools 全サーバーのツール一覧を返す (サーバー名 → ツール一覧)
-func (m *Manager) GetAllTools() map[string][]MCPToolSchema {
+func (m *Manager) GetAllTools() map[string][]ToolSchema {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	result := make(map[string][]MCPToolSchema)
+	result := make(map[string][]ToolSchema)
 	for name, client := range m.clients {
 		result[name] = client.GetTools()
 	}
@@ -144,7 +144,7 @@ func (m *Manager) GetAllTools() map[string][]MCPToolSchema {
 }
 
 // CallTool 指定サーバーのツールを呼び出す
-func (m *Manager) CallTool(serverName, toolName string, arguments json.RawMessage) (*MCPToolCallResult, error) {
+func (m *Manager) CallTool(serverName, toolName string, arguments json.RawMessage) (*ToolCallResult, error) {
 	m.mu.RLock()
 	client, ok := m.clients[serverName]
 	m.mu.RUnlock()

@@ -21,10 +21,10 @@ func NewParallelBridge(orchestrator *ParallelOrchestrator) *ParallelBridge {
 
 // RunParallelTasks implements tool.ParallelAgentExecutor
 func (pb *ParallelBridge) RunParallelTasks(ctx context.Context, tasks []tool.ParallelTask) (string, error) {
-	// Convert tool.ParallelTask to agent.AgentTask
-	agentTasks := make([]AgentTask, len(tasks))
+	// Convert tool.ParallelTask to agent.Task
+	agentTasks := make([]Task, len(tasks))
 	for i, t := range tasks {
-		agentTasks[i] = AgentTask{
+		agentTasks[i] = Task{
 			Description: t.Description,
 			AllowWrites: t.AllowWrites,
 		}

@@ -21,7 +21,7 @@ const (
 
 // ChainEntry チェーンエントリ
 type ChainEntry struct {
-	Provider LLMProvider
+	Provider Provider
 	Role     ChainRole
 	Priority int // 低い値が優先
 }
@@ -45,7 +45,7 @@ type ProviderChain struct {
 }
 
 // NewProviderChain 新しいプロバイダーチェーンを作成
-func NewProviderChain(providers ...LLMProvider) *ProviderChain {
+func NewProviderChain(providers ...Provider) *ProviderChain {
 	entries := make([]ChainEntry, len(providers))
 	for i, p := range providers {
 		role := RoleFallback
@@ -86,7 +86,7 @@ func (c *ProviderChain) SetFallbackCallback(cb FallbackCallback) {
 }
 
 // AddProvider チェーンにプロバイダーを追加
-func (c *ProviderChain) AddProvider(provider LLMProvider, role ChainRole) {
+func (c *ProviderChain) AddProvider(provider Provider, role ChainRole) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = append(c.entries, ChainEntry{
@@ -323,7 +323,7 @@ func (c *ProviderChain) Info() ProviderInfo {
 }
 
 // GetCurrentProvider 現在のプロバイダーを返す
-func (c *ProviderChain) GetCurrentProvider() LLMProvider {
+func (c *ProviderChain) GetCurrentProvider() Provider {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

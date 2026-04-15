@@ -229,7 +229,7 @@ func TestSaveConfigFile(t *testing.T) {
 	cfg.ContextWindow = 65536
 
 	// 手動でファイルに書き出し（SaveConfigFile の内部ロジックを再現）
-	var cf ConfigFile
+	var cf File
 	cf.Providers = make(map[string]ProviderProfile)
 	cf.Provider = cfg.Provider
 	cf.MaxTokens = cfg.MaxTokens
@@ -332,7 +332,7 @@ func TestParseConfigFile_InvalidJSON(t *testing.T) {
 func TestApplyConfigFile_ProviderOverridesGlobal(t *testing.T) {
 	cfg := DefaultConfig()
 
-	cf := &ConfigFile{
+	cf := &File{
 		MaxTokens:   8192,
 		Temperature: 0.7,
 		Provider:    "openrouter",
@@ -382,7 +382,7 @@ func TestSaveAndReload_RoundTrip(t *testing.T) {
 	original.ContextWindow = 131072
 
 	// 手動で保存（SaveConfigFile は const defaultConfigPath を使うため）
-	var cf ConfigFile
+	var cf File
 	cf.Providers = make(map[string]ProviderProfile)
 	cf.Provider = original.Provider
 	cf.MaxTokens = original.MaxTokens

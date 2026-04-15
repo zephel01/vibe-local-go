@@ -34,7 +34,7 @@ var Version = "1.1.1"
 
 // ShutdownManager handles graceful shutdown
 type ShutdownManager struct {
-	provider    llm.LLMProvider
+	provider    llm.Provider
 	session     *session.Session
 	persistence *session.PersistenceManager
 	terminal    *ui.Terminal
@@ -43,7 +43,7 @@ type ShutdownManager struct {
 }
 
 // NewShutdownManager creates a new shutdown manager
-func NewShutdownManager(provider llm.LLMProvider, sess *session.Session, persistence *session.PersistenceManager, terminal *ui.Terminal, cancel context.CancelFunc) *ShutdownManager {
+func NewShutdownManager(provider llm.Provider, sess *session.Session, persistence *session.PersistenceManager, terminal *ui.Terminal, cancel context.CancelFunc) *ShutdownManager {
 	return &ShutdownManager{
 		provider:    provider,
 		session:     sess,
@@ -240,7 +240,7 @@ func main() {
 		resumeSession(ctx, sess, persistenceMgr, flagResume, cfg)
 	}
 
-	// Initialize agent with LLMProvider
+	// Initialize agent with Provider
 	agt := agent.NewAgent(provider, registry, permissionMgr, validator, sess, terminal, cfg)
 
 	// Register parallel_agents tool (requires provider + registry)
@@ -364,7 +364,7 @@ func loadConfig() *config.Config {
 }
 
 // createProvider creates the LLM provider based on config
-func createProvider(cfg *config.Config) llm.LLMProvider {
+func createProvider(cfg *config.Config) llm.Provider {
 	switch cfg.Provider {
 	case "openrouter", "openai", "anthropic", "google",
 		"deepseek", "mistral", "groq", "together", "fireworks",
@@ -434,7 +434,7 @@ func createProvider(cfg *config.Config) llm.LLMProvider {
 // createProviderWithChain ゼロコンフィグ対応のプロバイダー作成
 // プロバイダーが未指定の場合は AutoDetect → ProviderChain を構築
 // 指定されている場合はクラウドフォールバック付きチェーンを構築
-func createProviderWithChain(ctx context.Context, cfg *config.Config, terminal *ui.Terminal) llm.LLMProvider {
+func createProviderWithChain(ctx context.Context, cfg *config.Config, terminal *ui.Terminal) llm.Provider {
 	// 明示的にプロバイダーが指定されている場合
 	if cfg.Provider != "" {
 		mainProvider := createProvider(cfg)
@@ -505,7 +505,7 @@ func createProviderWithChain(ctx context.Context, cfg *config.Config, terminal *
 }
 
 // buildChainWithFallbacks 既存プロバイダーにクラウドフォールバックを付けたチェーンを構築
-func buildChainWithFallbacks(mainProvider llm.LLMProvider, cfg *config.Config, terminal *ui.Terminal) llm.LLMProvider {
+func buildChainWithFallbacks(mainProvider llm.Provider, cfg *config.Config, terminal *ui.Terminal) llm.Provider {
 	chain := llm.NewProviderChain(mainProvider)
 
 	// ローカルプロバイダーの場合のみクラウドフォールバックを追加
@@ -553,7 +553,7 @@ func addCloudFallbackToChain(chain *llm.ProviderChain, cfg *config.Config, termi
 }
 
 // detectCloudFromEnv 環境変数からクラウドプロバイダーを検出
-func detectCloudFromEnv(cfg *config.Config) llm.LLMProvider {
+func detectCloudFromEnv(cfg *config.Config) llm.Provider {
 	if cfg.CloudAPIKeys == nil {
 		return nil
 	}
@@ -588,8 +588,8 @@ func setAPIKeyForProvider(cfg *config.Config, provider, apiKey string) {
 	cfg.CloudAPIKeys[provider] = apiKey
 }
 
-func createModelRouter(provider llm.LLMProvider, cfg *config.Config) *llm.ModelRouter {
-	var sidecarProvider llm.LLMProvider
+func createModelRouter(provider llm.Provider, cfg *config.Config) *llm.ModelRouter {
+	var sidecarProvider llm.Provider
 	if cfg.SidecarModel != "" {
 		// サイドカーも同じホストで別モデル
 		// ローカルプロバイダーの場合はホストを取得
@@ -652,7 +652,7 @@ func createSession(cfg *config.Config, skillMgr *skill.Manager) *session.Session
 	return sess
 }
 
-func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *config.Config, sbMgr *sandbox.Manager, skillMgr *skill.Manager, mcpMgr *mcp.Manager, agt *agent.Agent) *ui.CommandHandler {
+func createCommandHandler(terminal *ui.Terminal, provider llm.Provider, cfg *config.Config, sbMgr *sandbox.Manager, skillMgr *skill.Manager, mcpMgr *mcp.Manager, agt *agent.Agent) *ui.CommandHandler {
 	cmdHandler := ui.NewCommandHandler(terminal)
 
 	cmdHandler.Register(&ui.SlashCommand{
@@ -1999,7 +1999,7 @@ func createToolRegistry(terminal *ui.Terminal, perm *security.PermissionManager,
 // checkProviderConnection checks the LLM provider connection
 // 接続失敗時はリトライ/再設定/終了を選択できる
 // プロバイダーが再設定された場合は新しいプロバイダーを返す
-func checkProviderConnection(ctx context.Context, provider llm.LLMProvider, cfg *config.Config, terminal *ui.Terminal) llm.LLMProvider {
+func checkProviderConnection(ctx context.Context, provider llm.Provider, cfg *config.Config, terminal *ui.Terminal) llm.Provider {
 	for {
 		info := provider.Info()
 		terminal.PrintColored(ui.ColorCyan, fmt.Sprintf("%s (%s) 接続を確認中...\n", info.Name, info.BaseURL))
@@ -2053,7 +2053,7 @@ func checkProviderConnection(ctx context.Context, provider llm.LLMProvider, cfg 
 
 // pullModelIfNeeded checks and pulls model if needed (ModelManager対応プロバイダーのみ)
 // クラウドプロバイダーへの切替が選択された場合は true を返す
-func pullModelIfNeeded(ctx context.Context, provider llm.LLMProvider, cfg *config.Config, terminal *ui.Terminal) bool {
+func pullModelIfNeeded(ctx context.Context, provider llm.Provider, cfg *config.Config, terminal *ui.Terminal) bool {
 	mm, ok := provider.(llm.ModelManager)
 	if !ok {
 		// ModelManager非対応の場合はスキップ
@@ -2304,7 +2304,7 @@ func switchToCloudProvider(cfg *config.Config, terminal *ui.Terminal) bool {
 	return true
 }
 
-func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRouter, provider llm.LLMProvider) {
+func showBanner(terminal *ui.Terminal, cfg *config.Config, router *llm.ModelRouter, provider llm.Provider) {
 	tier := router.GetModelTier(cfg.Model)
 	cwd, _ := os.Getwd()
 
@@ -2882,7 +2882,7 @@ func registerPlanCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, 
 }
 
 // registerProvidersStatusCommand プロバイダー状態確認コマンドを登録（T-8503）
-func registerProvidersStatusCommand(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, provider llm.LLMProvider) {
+func registerProvidersStatusCommand(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, provider llm.Provider) {
 	cmdHandler.Register(&ui.SlashCommand{
 		Name:        "providers",
 		Description: "登録済みプロバイダーの接続状況と一覧を表示",
@@ -3040,7 +3040,7 @@ func registerWatchCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal,
 }
 
 // registerChainCommands は /chain コマンドを登録する
-func registerChainCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, provider llm.LLMProvider) {
+func registerChainCommands(cmdHandler *ui.CommandHandler, terminal *ui.Terminal, provider llm.Provider) {
 	cmdHandler.Register(&ui.SlashCommand{
 		Name:        "chain",
 		Description: "プロバイダーチェーンの状態表示・切替",

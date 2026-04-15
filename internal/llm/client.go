@@ -139,7 +139,7 @@ func (c *Client) PullModel(ctx context.Context, modelName string) error {
 	return c.provider.PullModel(ctx, modelName)
 }
 
-// GetProvider returns the underlying OllamaProvider (for LLMProvider interface access)
+// GetProvider returns the underlying OllamaProvider (for Provider interface access)
 func (c *Client) GetProvider() *OllamaProvider {
 	return c.provider
 }

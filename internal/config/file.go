@@ -17,8 +17,8 @@ type ProviderProfile struct {
 	Temperature float64 `json:"temperature,omitempty"` // プロバイダー固有のtemperature
 }
 
-// ConfigFile represents the JSON config file structure
-type ConfigFile struct {
+// File represents the JSON config file structure
+type File struct {
 	// 既存フィールド（後方互換）
 	Model         string  `json:"MODEL,omitempty"`
 	SidecarModel  string  `json:"SIDECAR_MODEL,omitempty"`
@@ -63,7 +63,7 @@ func (c *Config) ParseConfigFile() error {
 			continue
 		}
 
-		var cf ConfigFile
+		var cf File
 		if err := json.Unmarshal(file, &cf); err != nil {
 			lastErr = fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 			continue
@@ -83,8 +83,8 @@ func (c *Config) ParseConfigFile() error {
 	return nil
 }
 
-// applyConfigFile ConfigFile の値を Config に反映
-func (c *Config) applyConfigFile(cf *ConfigFile) {
+// applyConfigFile File の値を Config に反映
+func (c *Config) applyConfigFile(cf *File) {
 	// --- 既存フィールド（後方互換） ---
 	if cf.Model != "" {
 		c.Model = cf.Model
@@ -169,7 +169,7 @@ func (c *Config) SaveConfigFile() error {
 	}
 
 	// 既存ファイルを読み込んでマージ（存在する場合）
-	var cf ConfigFile
+	var cf File
 	if data, err := os.ReadFile(savePath); err == nil {
 		_ = json.Unmarshal(data, &cf) // エラーは無視（新規作成扱い）
 	}
@@ -239,7 +239,7 @@ func (c *Config) GetProviderProfiles() map[string]ProviderProfile {
 			continue
 		}
 
-		var cf ConfigFile
+		var cf File
 		if err := json.Unmarshal(data, &cf); err != nil {
 			continue
 		}
@@ -261,7 +261,7 @@ func (c *Config) DeleteProviderProfile(key string) error {
 		return fmt.Errorf("config file not found: %w", err)
 	}
 
-	var cf ConfigFile
+	var cf File
 	if err := json.Unmarshal(data, &cf); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
@@ -298,7 +298,7 @@ func (c *Config) SaveProviderProfile(key string, profile ProviderProfile) error 
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	var cf ConfigFile
+	var cf File
 	if data, err := os.ReadFile(savePath); err == nil {
 		_ = json.Unmarshal(data, &cf)
 	}
