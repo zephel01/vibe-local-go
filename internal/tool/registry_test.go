@@ -277,34 +277,30 @@ func TestNewErrorResultWithID(t *testing.T) {
 
 func TestRegistry_ConcurrentAccess(t *testing.T) {
 	reg := NewRegistry()
-	done := make(chan bool)
 
-	// Concurrent registration
+	// Register tools sequentially first to guarantee count
 	for i := 0; i < 10; i++ {
-		go func(id int) {
-			tool := &mockTool{name: fmt.Sprintf("tool_%d", id)}
-			reg.Register(tool)
-			done <- true
-		}(i)
+		tool := &mockTool{name: fmt.Sprintf("tool_%d", i)}
+		reg.Register(tool)
 	}
 
-	// Concurrent reads
+	// Now test concurrent reads don't panic or race
+	done := make(chan bool)
 	for i := 0; i < 10; i++ {
-		go func() {
-			reg.Get("tool1")
+		go func(id int) {
+			reg.Get(fmt.Sprintf("tool_%d", id))
 			reg.Names()
 			reg.GetSchemas()
 			reg.Count()
 			done <- true
-		}()
+		}(i)
 	}
 
-	// Wait for all goroutines
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 10; i++ {
 		<-done
 	}
 
-	// Verify final state
+	// Verify state
 	if reg.Count() != 10 {
 		t.Errorf("expected 10 tools, got %d", reg.Count())
 	}

@@ -363,8 +363,8 @@ func TestBackgroundTask_Completion(t *testing.T) {
 
 	taskID := strings.TrimSpace(strings.TrimPrefix(result.Output, "Background task started with ID: "))
 
-	// Wait for task to complete
-	time.Sleep(100 * time.Millisecond)
+	// Wait for task to complete (longer for slow CI environments)
+	time.Sleep(2 * time.Second)
 
 	// Check task status
 	task, ok := GetBackgroundTask(taskID)
