@@ -97,20 +97,26 @@ func (r *Registry) Names() []string {
 // GetSchemas returns all tool schemas (OpenAI function calling format)
 func (r *Registry) GetSchemas() []*FunctionSchema {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	if r.schemaCache != nil {
+		defer r.mu.RUnlock()
+		return r.schemaCache
+	}
+	r.mu.RUnlock()
 
-	// Return cached schemas if available
+	// Upgrade to write lock to build and cache schemas
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Double-check after acquiring write lock
 	if r.schemaCache != nil {
 		return r.schemaCache
 	}
 
-	// Build schema cache
 	schemas := make([]*FunctionSchema, 0, len(r.tools))
 	for _, cfg := range r.tools {
 		schemas = append(schemas, cfg.Tool.Schema())
 	}
 
-	// Cache the result
 	r.schemaCache = schemas
 	return schemas
 }
