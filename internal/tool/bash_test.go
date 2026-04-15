@@ -366,11 +366,17 @@ func TestBackgroundTask_Completion(t *testing.T) {
 	// Poll until task completes (up to 10 seconds for slow CI)
 	var task *BackgroundTask
 	var ok bool
+	var output string
+	var taskErr error
+	var done bool
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		task, ok = GetBackgroundTask(taskID)
-		if ok && task.Done {
-			break
+		if ok {
+			output, taskErr, done = task.GetResult()
+			if done {
+				break
+			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -379,16 +385,16 @@ func TestBackgroundTask_Completion(t *testing.T) {
 		t.Fatal("expected to find background task")
 	}
 
-	if !task.Done {
+	if !done {
 		t.Fatal("expected task to be completed within timeout")
 	}
 
-	if task.Error != nil {
-		t.Errorf("expected no error, got %v", task.Error)
+	if taskErr != nil {
+		t.Errorf("expected no error, got %v", taskErr)
 	}
 
-	if !strings.Contains(task.Output, "completed") {
-		t.Errorf("expected output to contain 'completed', got '%s'", task.Output)
+	if !strings.Contains(output, "completed") {
+		t.Errorf("expected output to contain 'completed', got '%s'", output)
 	}
 }
 

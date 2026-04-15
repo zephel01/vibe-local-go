@@ -370,9 +370,26 @@ type BackgroundTask struct {
 	ID        string
 	Command   string
 	StartTime time.Time
+	mu        sync.Mutex
 	Output    string
 	Error     error
 	Done      bool
+}
+
+// SetResult sets the task result in a thread-safe manner
+func (t *BackgroundTask) SetResult(output string, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.Output = output
+	t.Error = err
+	t.Done = true
+}
+
+// GetResult reads the task result in a thread-safe manner
+func (t *BackgroundTask) GetResult() (output string, taskErr error, done bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.Output, t.Error, t.Done
 }
 
 // backgroundTaskManager manages background tasks
@@ -435,9 +452,7 @@ func (t *BashTool) executeInBackground(command string, timeout time.Duration) (*
 
 		err := cmd.Run()
 
-		task.Output = truncateOutput(output.String())
-		task.Error = err
-		task.Done = true
+		task.SetResult(truncateOutput(output.String()), err)
 	}()
 
 	return NewResult(fmt.Sprintf("Background task started with ID: %s", taskID)), nil
@@ -466,7 +481,8 @@ func cleanupOldBackgroundTasks() {
 		if !ok {
 			return true
 		}
-		if now.Sub(task.StartTime) > BgTaskCleanupInterval && task.Done {
+		_, _, done := task.GetResult()
+		if now.Sub(task.StartTime) > BgTaskCleanupInterval && done {
 			bgTaskMap.Delete(key)
 		}
 		return true
