@@ -157,7 +157,7 @@ func main() {
 	permissionMgr, validator := createSecurityComponents(cfg)
 
 	// スキルマネージャー初期化
-	skillMgr := skill.NewSkillManager()
+	skillMgr := skill.NewManager()
 	if err := skillMgr.LoadSkills(); err != nil {
 		terminal.PrintColored(ui.ColorYellow, fmt.Sprintf("スキル読み込み警告: %v\n", err))
 	}
@@ -643,7 +643,7 @@ func createSession(cfg *config.Config, skillMgr *skill.Manager) *session.Session
 	// Build system prompt (with skill metadata if available)
 	var systemPrompt string
 	if skillMgr != nil && skillMgr.Count() > 0 {
-		systemPrompt = config.BuildSystemPrompt(cfg, skillMgr.GetSkillMetadata())
+		systemPrompt = config.BuildSystemPrompt(cfg, skillMgr.GetMetadata())
 	} else {
 		systemPrompt = config.BuildSystemPrompt(cfg)
 	}
