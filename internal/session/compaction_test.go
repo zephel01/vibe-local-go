@@ -245,9 +245,9 @@ func TestCompactWithLLM(t *testing.T) {
 	}
 
 	// For now, CompactWithLLM does the same as Compact
-	// Should compact the session
-	if len(session.Messages) > 30 {
-		t.Errorf("Messages = %v, want <= 30 after compaction", len(session.Messages))
+	// Should compact the session: keeps 30 recent messages + 1 summary = 31 total
+	if len(session.Messages) > 31 {
+		t.Errorf("Messages = %v, want <= 31 after compaction (30 recent + 1 summary)", len(session.Messages))
 	}
 }
 
