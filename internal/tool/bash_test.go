@@ -363,17 +363,24 @@ func TestBackgroundTask_Completion(t *testing.T) {
 
 	taskID := strings.TrimSpace(strings.TrimPrefix(result.Output, "Background task started with ID: "))
 
-	// Wait for task to complete (longer for slow CI environments)
-	time.Sleep(2 * time.Second)
+	// Poll until task completes (up to 10 seconds for slow CI)
+	var task *BackgroundTask
+	var ok bool
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		task, ok = GetBackgroundTask(taskID)
+		if ok && task.Done {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 
-	// Check task status
-	task, ok := GetBackgroundTask(taskID)
 	if !ok {
 		t.Fatal("expected to find background task")
 	}
 
 	if !task.Done {
-		t.Error("expected task to be completed")
+		t.Fatal("expected task to be completed within timeout")
 	}
 
 	if task.Error != nil {
