@@ -386,10 +386,10 @@ func (t *BackgroundTask) SetResult(output string, err error) {
 }
 
 // GetResult reads the task result in a thread-safe manner
-func (t *BackgroundTask) GetResult() (output string, taskErr error, done bool) {
+func (t *BackgroundTask) GetResult() (output string, done bool, taskErr error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.Output, t.Error, t.Done
+	return t.Output, t.Done, t.Error
 }
 
 // backgroundTaskManager manages background tasks
@@ -481,7 +481,7 @@ func cleanupOldBackgroundTasks() {
 		if !ok {
 			return true
 		}
-		_, _, done := task.GetResult()
+		_, done, _ := task.GetResult()
 		if now.Sub(task.StartTime) > BgTaskCleanupInterval && done {
 			bgTaskMap.Delete(key)
 		}

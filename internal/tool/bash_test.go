@@ -373,7 +373,7 @@ func TestBackgroundTask_Completion(t *testing.T) {
 	for time.Now().Before(deadline) {
 		task, ok = GetBackgroundTask(taskID)
 		if ok {
-			output, taskErr, done = task.GetResult()
+			output, done, taskErr = task.GetResult()
 			if done {
 				break
 			}
