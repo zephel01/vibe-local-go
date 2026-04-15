@@ -14,12 +14,12 @@ const (
 	CategoryEnhancing
 )
 
-// ToolFailureStrategy defines how to handle tool failures
-type ToolFailureStrategy int
+// FailureStrategy defines how to handle tool failures
+type FailureStrategy int
 
 const (
 	// FailureStrategyFatal indicates the session should stop on failure
-	FailureStrategyFatal ToolFailureStrategy = iota
+	FailureStrategyFatal FailureStrategy = iota
 	// FailureStrategyRetry indicates the tool should be retried
 	FailureStrategyRetry
 	// FailureStrategySkip indicates the tool should be skipped on failure
