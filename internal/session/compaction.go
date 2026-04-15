@@ -178,10 +178,7 @@ func truncateForSummary(content string, maxLength int) string {
 // CompactWithLLM compacts using an LLM for better summaries
 // This is a placeholder - in production you'd use the LLM client
 func (s *Session) CompactWithLLM(llmClient interface{}) *CompactionResult {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// For now, just do simple compaction
+	// Delegate to Compact which handles its own locking
 	return s.Compact()
 }
 
