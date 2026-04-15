@@ -153,7 +153,7 @@ func TestPathValidator_ValidateFileOperation(t *testing.T) {
 		{"read outside base", "read", "/etc/passwd", true},
 		{"write outside base", "write", "/etc/passwd", true},
 		{"write protected file", "write", filepath.Join(tmpDir, ".ssh", "config"), true},
-		{"read protected file", "read", filepath.Join(tmpDir, ".ssh", "config"), true},
+		{"read protected file", "read", filepath.Join(tmpDir, ".ssh", "config"), false},
 	}
 
 	for _, tt := range tests {

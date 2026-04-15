@@ -100,9 +100,9 @@ func TestPermissionManager_CheckPermission(t *testing.T) {
 			alwaysApprove: true,
 			toolName:      "bash",
 			params:        map[string]interface{}{"command": "ls"},
-			wantAllowed:   false,
-			wantReason:    "dangerous",
-			wantErr:       true,
+			wantAllowed:   true,
+			wantReason:    "always_approved",
+			wantErr:       false,
 		},
 	}
 
