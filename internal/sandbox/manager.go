@@ -390,11 +390,6 @@ func generateUnifiedDiff(filename, oldContent, newContent string) string {
 				len(oldLines), len(newLines)))
 		} else {
 			// 行ごとの比較（簡易版）
-			maxLen := len(oldLines)
-			if len(newLines) > maxLen {
-				maxLen = len(newLines)
-			}
-
 			i, j := 0, 0
 			for i < len(oldLines) || j < len(newLines) {
 				if i < len(oldLines) && j < len(newLines) && oldLines[i] == newLines[j] {

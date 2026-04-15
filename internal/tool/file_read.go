@@ -149,7 +149,7 @@ func (t *ReadTool) readText(path string, offset, limit int) (*Result, error) {
 	}
 
 	// Reset file position
-	file.Seek(0, io.SeekStart)
+	_, _ = file.Seek(0, io.SeekStart)
 
 	// Read lines
 	var lines []string
@@ -267,7 +267,7 @@ func isBinary(file *os.File) bool {
 	}
 
 	// Reset file position
-	file.Seek(0, io.SeekStart)
+	_, _ = file.Seek(0, io.SeekStart)
 	return false
 }
 

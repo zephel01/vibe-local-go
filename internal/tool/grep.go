@@ -144,7 +144,7 @@ func (t *GrepTool) Execute(ctx context.Context, params json.RawMessage) (*Result
 			output.WriteString(match.FilePath + "\n")
 		}
 	case "count":
-		output.WriteString(fmt.Sprintf("Match counts:\n\n"))
+		output.WriteString("Match counts:\n\n")
 		for _, match := range results {
 			output.WriteString(fmt.Sprintf("%s: %d\n", match.FilePath, match.Count))
 		}

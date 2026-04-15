@@ -455,14 +455,18 @@ func GetBackgroundTask(taskID string) (*BackgroundTask, bool) {
 	if !ok {
 		return nil, false
 	}
-	return val.(*BackgroundTask), true
+	task, ok := val.(*BackgroundTask)
+	return task, ok
 }
 
 // cleanupOldBackgroundTasks removes tasks older than 1 hour
 func cleanupOldBackgroundTasks() {
 	now := time.Now()
 	bgTaskMap.Range(func(key, value interface{}) bool {
-		task := value.(*BackgroundTask)
+		task, ok := value.(*BackgroundTask)
+		if !ok {
+			return true
+		}
 		if now.Sub(task.StartTime) > BgTaskCleanupInterval && task.Done {
 			bgTaskMap.Delete(key)
 		}

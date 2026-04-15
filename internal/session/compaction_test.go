@@ -35,7 +35,7 @@ func TestCompactIfNeeded_AboveMessageThreshold(t *testing.T) {
 	result := session.CompactIfNeeded()
 
 	if result == nil {
-		t.Error("CompactIfNeeded should return result when above threshold")
+		t.Fatal("CompactIfNeeded should return result when above threshold")
 	}
 
 	if result.CompactedMessages <= 0 {

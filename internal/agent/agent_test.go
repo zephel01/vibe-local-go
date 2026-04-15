@@ -159,7 +159,7 @@ func TestGetSession(t *testing.T) {
 	retrieved := agent.GetSession()
 
 	if retrieved == nil {
-		t.Error("Session should not be nil")
+		t.Fatal("Session should not be nil")
 	}
 
 	if retrieved.ID == "" {
@@ -303,7 +303,7 @@ func TestLoopDetectorDescription(t *testing.T) {
 
 	loopInfo := agent.loopDetector.GetLoopInfo()
 	if loopInfo == nil {
-		t.Error("Loop info should not be nil")
+		t.Fatal("Loop info should not be nil")
 	}
 
 	if loopInfo.Description == "" {

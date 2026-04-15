@@ -376,16 +376,13 @@ func (c *ProviderChain) switchToNext() bool {
 
 	// 次のプロバイダーを探す（role優先度: main > sub > fallback）
 	startIdx := c.current
-	for {
-		c.current = (c.current + 1) % len(c.entries)
-		if c.current == startIdx {
-			// 一周した = 全て試した
-			return false
-		}
-
-		// 新しいインデックスに切り替えた
-		return true
+	c.current = (c.current + 1) % len(c.entries)
+	if c.current == startIdx {
+		// 一周した = 全て試した
+		return false
 	}
+	// 新しいインデックスに切り替えた
+	return true
 }
 
 // GetLastError 最後のエラーを返す

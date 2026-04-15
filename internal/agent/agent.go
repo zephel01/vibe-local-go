@@ -244,10 +244,12 @@ func (a *Agent) callLLM(ctx context.Context, messages []map[string]interface{}, 
 	// Convert messages to llm.Message format
 	llmMessages := make([]llm.Message, len(messages))
 	for i, msg := range messages {
+		role, _ := msg["role"].(string)
+		content, _ := msg["content"].(string)
 		llmMessages[i] = llm.Message{
-			Role:      msg["role"].(string),
-			Content:   msg["content"].(string),
-			ToolID:    getString(msg, "tool_id"),
+			Role:    role,
+			Content: content,
+			ToolID:  getString(msg, "tool_id"),
 		}
 	}
 

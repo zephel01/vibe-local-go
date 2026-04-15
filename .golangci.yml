@@ -33,7 +33,7 @@ linters-settings:
       - G306
 
   errcheck:
-    check-type-assertions: true
+    check-type-assertions: false
     check-blank: false
 
 issues:

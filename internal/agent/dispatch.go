@@ -223,7 +223,7 @@ func (d *Dispatcher) getFallbackResult(toolName string, arguments string) string
 		return fmt.Sprintf("[]\n// Note: web_search unavailable - search the web manually if needed")
 
 	case "web_fetch":
-		return fmt.Sprintf("// Note: web_fetch unavailable - content could not be retrieved")
+		return "// Note: web_fetch unavailable - content could not be retrieved"
 
 	case "glob":
 		return "[]\n// Note: glob returned no results (fallback)"

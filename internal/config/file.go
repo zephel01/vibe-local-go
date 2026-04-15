@@ -171,7 +171,7 @@ func (c *Config) SaveConfigFile() error {
 	// 既存ファイルを読み込んでマージ（存在する場合）
 	var cf ConfigFile
 	if data, err := os.ReadFile(savePath); err == nil {
-		json.Unmarshal(data, &cf) // エラーは無視（新規作成扱い）
+		_ = json.Unmarshal(data, &cf) // エラーは無視（新規作成扱い）
 	}
 
 	// Providers マップの初期化
@@ -300,7 +300,7 @@ func (c *Config) SaveProviderProfile(key string, profile ProviderProfile) error 
 
 	var cf ConfigFile
 	if data, err := os.ReadFile(savePath); err == nil {
-		json.Unmarshal(data, &cf)
+		_ = json.Unmarshal(data, &cf)
 	}
 
 	if cf.Providers == nil {

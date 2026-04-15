@@ -316,7 +316,7 @@ func TestGetBackgroundTask(t *testing.T) {
 	}
 
 	if task == nil {
-		t.Error("expected non-nil task")
+		t.Fatal("expected non-nil task")
 	}
 
 	if task.ID != taskID {

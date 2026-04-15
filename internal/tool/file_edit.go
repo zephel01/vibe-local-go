@@ -216,9 +216,6 @@ func generateUnifiedDiff(filename string, oldText, newText string) string {
 			diff.WriteString("+" + newLines[k] + "\n")
 		}
 
-		// Skip ahead
-		i += 3
-		j += 3
 		break
 	}
 

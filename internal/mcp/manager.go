@@ -101,13 +101,13 @@ func (m *Manager) StartAll(ctx context.Context) []error {
 		}
 
 		if err := client.Initialize(); err != nil {
-			client.Stop()
+			_ = client.Stop()
 			errs = append(errs, fmt.Errorf("MCP '%s' 初期化エラー: %w", name, err))
 			continue
 		}
 
 		if _, err := client.ListTools(); err != nil {
-			client.Stop()
+			_ = client.Stop()
 			errs = append(errs, fmt.Errorf("MCP '%s' ツール一覧取得エラー: %w", name, err))
 			continue
 		}

@@ -154,7 +154,11 @@ func GetRetryDelay(classification ErrorClassification, attempt int) time.Duratio
 		return time.Duration(attempt+1) * 500 * time.Millisecond
 	case ErrorClassRateLimit:
 		// レート制限の場合は指数バックオフ
-		delay := time.Second * time.Duration(1<<uint(attempt))
+		shift := attempt
+		if shift < 0 {
+			shift = 0
+		}
+		delay := time.Second * time.Duration(1<<uint(shift)) //nolint:gosec // shift is always non-negative
 		if delay > 30*time.Second {
 			delay = 30 * time.Second
 		}

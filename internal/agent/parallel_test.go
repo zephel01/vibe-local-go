@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 )
 
@@ -76,7 +77,7 @@ func TestJoinStrings(t *testing.T) {
 
 func TestRunParallel_EmptyTasks(t *testing.T) {
 	po := NewParallelOrchestrator(nil, nil)
-	results := po.RunParallel(nil, []AgentTask{})
+	results := po.RunParallel(context.TODO(), []AgentTask{})
 	if results != nil {
 		t.Error("expected nil results for empty tasks")
 	}

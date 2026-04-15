@@ -212,7 +212,7 @@ func FetchLocalProviderModels(host, providerKey string) ([]string, error) {
 		return nil, fmt.Errorf("unsupported provider: %s", providerKey)
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func (o *OllamaProvider) PullModelWithProgress(ctx context.Context, name string,
 
 	if !stream {
 		// 非ストリーミング: レスポンスを読み捨てて完了
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 

@@ -138,7 +138,7 @@ func (le *LineEditor) ReadLine(prompt string) (string, error) {
 	if err != nil {
 		return le.readLineFallback(prompt)
 	}
-	defer term.Restore(fd, oldState)
+	defer func() { _ = term.Restore(fd, oldState) }()
 
 	buf := make([]rune, 0, 256)
 	cursor := 0 // カーソル位置（rune単位、バッファ全体での位置）
@@ -409,7 +409,7 @@ func (le *LineEditor) ReadLine(prompt string) (string, error) {
 				case '3': // Delete key (ESC[3~)
 					// 追加の '~' を読む
 					if n < 4 {
-						os.Stdin.Read(b[3:4])
+						_, _ = os.Stdin.Read(b[3:4])
 					}
 					if cursor < len(buf) {
 						copy(buf[cursor:], buf[cursor+1:])

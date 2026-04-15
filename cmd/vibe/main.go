@@ -152,7 +152,7 @@ func main() {
 	// Initialize components
 	terminal := ui.NewTerminal()
 	provider := createProviderWithChain(ctx, cfg, terminal)
-	router := createModelRouter(provider, cfg)
+	var router *llm.ModelRouter
 	permissionMgr, validator := createSecurityComponents(cfg)
 
 	// スキルマネージャー初期化
@@ -270,7 +270,7 @@ func loadConfig() *config.Config {
 	cfg := config.DefaultConfig()
 
 	// 1. config.json から読み込み（最低優先度）
-	cfg.ParseConfigFile()
+	_ = cfg.ParseConfigFile()
 
 	// 2. 環境変数で上書き
 	cfg.ParseEnv()
@@ -718,7 +718,7 @@ func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *
 			if profiles := cfg.GetProviderProfiles(); profiles != nil {
 				if profile, exists := profiles[cfg.Provider]; exists {
 					profile.Model = selectedModel
-					cfg.SaveProviderProfile(cfg.Provider, profile)
+					_ = cfg.SaveProviderProfile(cfg.Provider, profile)
 				}
 			}
 
@@ -769,7 +769,7 @@ func createCommandHandler(terminal *ui.Terminal, provider llm.LLMProvider, cfg *
 			if profiles := cfg.GetProviderProfiles(); profiles != nil {
 				if profile, exists := profiles[cfg.Provider]; exists {
 					profile.Model = newModel
-					cfg.SaveProviderProfile(cfg.Provider, profile)
+					_ = cfg.SaveProviderProfile(cfg.Provider, profile)
 				}
 			}
 

@@ -154,7 +154,7 @@ func (m *Manager) Rollback(ctx context.Context, checkpointID string) error {
 	}
 
 	// Pop the stash
-	cmd := exec.CommandContext(ctx, "git", "stash", "pop", fmt.Sprintf("stash@{%d}", stashIndex))
+	cmd := exec.CommandContext(ctx, "git", "stash", "pop", fmt.Sprintf("stash@{%d}", stashIndex)) //nolint:gosec // stashIndex is an integer, not user input
 	cmd.Dir = m.projectRoot
 	cmd.Env = os.Environ()
 
@@ -194,7 +194,7 @@ func (m *Manager) RollbackLatest(ctx context.Context) error {
 	}
 
 	// Pop the stash
-	cmd := exec.CommandContext(ctx, "git", "stash", "pop", fmt.Sprintf("stash@{%d}", stashIndex))
+	cmd := exec.CommandContext(ctx, "git", "stash", "pop", fmt.Sprintf("stash@{%d}", stashIndex)) //nolint:gosec // stashIndex is an integer, not user input
 	cmd.Dir = m.projectRoot
 	cmd.Env = os.Environ()
 

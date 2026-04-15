@@ -317,7 +317,7 @@ func (fw *FileWatcher) matchPattern(pattern string) []string {
 			ext = pattern[idx:]
 		}
 
-		filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}

@@ -199,8 +199,8 @@ func (c *Client) Stop() error {
 
 	// プロセスが終了するのを待つ（タイムアウト付きは呼び出し元で context.WithTimeout）
 	if c.cmd != nil && c.cmd.Process != nil {
-		c.cmd.Process.Kill()
-		c.cmd.Wait()
+		_ = c.cmd.Process.Kill()
+		_ = c.cmd.Wait()
 	}
 
 	return nil
