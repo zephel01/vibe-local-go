@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"sync"
 )
 
@@ -112,9 +113,16 @@ func (r *Registry) GetSchemas() []*FunctionSchema {
 		return r.schemaCache
 	}
 
+	// Collect names for deterministic ordering
+	names := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	schemas := make([]*FunctionSchema, 0, len(r.tools))
-	for _, cfg := range r.tools {
-		schemas = append(schemas, cfg.Tool.Schema())
+	for _, name := range names {
+		schemas = append(schemas, r.tools[name].Tool.Schema())
 	}
 
 	r.schemaCache = schemas
